@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#ffffff" />
+  <circle cx="256" cy="256" r="184" fill="#ff6e00" stroke="#000" stroke-width="32" />
+  <rect x="240" y="64" width="32" height="120" fill="#000" />
+  <rect x="64" y="240" width="120" height="32" fill="#000" />
+  <rect x="240" y="328" width="32" height="120" fill="#000" />
+  <rect x="328" y="240" width="120" height="32" fill="#000" />
+  <circle cx="256" cy="256" r="72" fill="#ffffff" stroke="#000" stroke-width="24" />
+  <circle cx="256" cy="256" r="28" fill="none" stroke="#000" stroke-width="20" />
+  <path d="M272 48H360C394.9 48 424 77.1 424 112V240H368V112H272V48Z" fill="#000" />
+  <text x="256" y="490" font-family="Arial, sans-serif" font-size="48" fill="#000" text-anchor="middle">CPTECH</text>
+</svg>

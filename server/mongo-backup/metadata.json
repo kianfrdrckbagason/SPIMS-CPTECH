@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-08-02T15:30:41.145Z",
+  "uri": "mongodb://localhost:27017/spims_cptech",
+  "dbName": "spims_cptech",
+  "collections": [
+    "users",
+    "spareparts",
+    "categories",
+    "consumables",
+    "dailyconsumptions",
+    "suppliers",
+    "toolinventories",
+    "borrowedtools",
+    "transactions",
+    "notifications"
+  ]
+}

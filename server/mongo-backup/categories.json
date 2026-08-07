@@ -1,0 +1,236 @@
+[
+  {
+    "_id": "6a6f5b43264e7a85640b620b",
+    "name": "GTO MECHANICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.664Z",
+    "updatedAt": "2026-08-02T14:59:15.664Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b620c",
+    "name": "UV MECHANICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.677Z",
+    "updatedAt": "2026-08-02T14:59:15.677Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b620d",
+    "name": "LABEL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.683Z",
+    "updatedAt": "2026-08-02T14:59:15.683Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b620e",
+    "name": "CARBON VANE SPARE PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.690Z",
+    "updatedAt": "2026-08-02T14:59:15.690Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b620f",
+    "name": "FOLDING GLUING SPARE PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.698Z",
+    "updatedAt": "2026-08-02T14:59:15.698Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6210",
+    "name": "MULLER MARTINI PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.701Z",
+    "updatedAt": "2026-08-02T14:59:15.701Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6211",
+    "name": "BINDING MECHANICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.708Z",
+    "updatedAt": "2026-08-02T14:59:15.708Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6212",
+    "name": "BEARING PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.714Z",
+    "updatedAt": "2026-08-02T14:59:15.714Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6213",
+    "name": "MBO MECHANICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.719Z",
+    "updatedAt": "2026-08-02T14:59:15.719Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6214",
+    "name": "ROLAND MECHANICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.726Z",
+    "updatedAt": "2026-08-02T14:59:15.726Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6215",
+    "name": "RUBBER ROLLER ROLAND PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.731Z",
+    "updatedAt": "2026-08-02T14:59:15.731Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6216",
+    "name": "ELETROMECHANICAL R300",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.738Z",
+    "updatedAt": "2026-08-02T14:59:15.738Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6217",
+    "name": "MECHANICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.745Z",
+    "updatedAt": "2026-08-02T14:59:15.745Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6218",
+    "name": "GTO RUBBER ROLLER",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.751Z",
+    "updatedAt": "2026-08-02T14:59:15.751Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6219",
+    "name": "R 300 ROLLER",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.757Z",
+    "updatedAt": "2026-08-02T14:59:15.757Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b621a",
+    "name": "OTHER ELECTRICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.761Z",
+    "updatedAt": "2026-08-02T14:59:15.761Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b621b",
+    "name": "ROLAND ELECTRICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.765Z",
+    "updatedAt": "2026-08-02T14:59:15.765Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b621c",
+    "name": "LABEL ELECTRICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.775Z",
+    "updatedAt": "2026-08-02T14:59:15.775Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b621d",
+    "name": "COMMON ELECTRICAL PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.783Z",
+    "updatedAt": "2026-08-02T14:59:15.783Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b621e",
+    "name": "COMPRESSOR AIR AND OIL FILTER",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.787Z",
+    "updatedAt": "2026-08-02T14:59:15.787Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b621f",
+    "name": "ROTARY BINDING",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.793Z",
+    "updatedAt": "2026-08-02T14:59:15.793Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6220",
+    "name": "UV ELECTRICAL",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.799Z",
+    "updatedAt": "2026-08-02T14:59:15.799Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6221",
+    "name": "LABEL ROLLER",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.803Z",
+    "updatedAt": "2026-08-02T14:59:15.803Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6222",
+    "name": "UV LAMP PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.812Z",
+    "updatedAt": "2026-08-02T14:59:15.812Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6223",
+    "name": "GTO ELECTRICAL",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.816Z",
+    "updatedAt": "2026-08-02T14:59:15.816Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a6f5b43264e7a85640b6224",
+    "name": "DIE CUT PARTS",
+    "sortOrder": 0,
+    "status": "active",
+    "createdAt": "2026-08-02T14:59:15.819Z",
+    "updatedAt": "2026-08-02T14:59:15.819Z",
+    "__v": 0
+  }
+]

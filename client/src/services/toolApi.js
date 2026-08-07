@@ -1,0 +1,28 @@
+import api from './api';
+
+const BASE_PATH = '/tools';
+
+export const createTool = async (data) => {
+  const response = await api.post(BASE_PATH, data);
+  return response.data;
+};
+
+export const getAllTools = async (params) => {
+  const response = await api.get(BASE_PATH, { params });
+  return response.data;
+};
+
+export const getToolById = async (id) => {
+  const response = await api.get(`${BASE_PATH}/${id}`);
+  return response.data;
+};
+
+export const updateTool = async (id, data) => {
+  const response = await api.put(`${BASE_PATH}/${id}`, data);
+  return response.data;
+};
+
+export const deleteTool = async (id) => {
+  const response = await api.delete(`${BASE_PATH}/${id}`);
+  return response.data;
+};

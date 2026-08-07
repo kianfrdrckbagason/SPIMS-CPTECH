@@ -1,0 +1,13 @@
+[
+  {
+    "_id": "6a6f48b3bec194d1350d79af",
+    "fullName": "CPTECH Administrator",
+    "email": "admin@cptech.com",
+    "password": "$2b$12$7OWPcxczwco839ZG2mG1geBfy0UfCg1pyUE69X1SJfJ5bTlq4trC2",
+    "role": "admin",
+    "status": "active",
+    "createdAt": "2026-08-02T13:40:03.157Z",
+    "updatedAt": "2026-08-02T13:40:03.157Z",
+    "__v": 0
+  }
+]
