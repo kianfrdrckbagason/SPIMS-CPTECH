@@ -21,3 +21,170 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* Ensure SweetAlert2 status action modals layer above MUI Dialogs (z-index 1300)
+   so they appear above the Tool Details panel and are not clipped. */
+.swal2-container {
+  z-index: 9999 !important;
+}
+
+/* Clean up native date inputs: hide the browser's "mm/dd/yyyy" placeholder text
+   on empty fields so it does not combine with the MUI label and clutter the UI.
+   The floating label + chosen value remain clearly visible and readable. */
+input[type='date'] {
+  color: transparent;
+}
+input[type='date']::-webkit-datetime-edit {
+  color: transparent;
+}
+input[type='date']:focus,
+input[type='date']:focus-within,
+input[type='date']:valid {
+  color: inherit;
+}
+input[type='date']:focus::-webkit-datetime-edit,
+input[type='date']:focus-within::-webkit-datetime-edit,
+input[type='date']:valid::-webkit-datetime-edit {
+  color: inherit;
+}
+
+/* =========================================================
+   Monthly Inventory Report - Print Styles
+   Treats the report as a print-ready A4 document.
+   ========================================================= */
+@page {
+  margin: 14mm;
+  size: A4;
+}
+
+@media print {
+  /* Hide all web UI chrome: app bar, sidebar, controls, alerts. */
+  .MuiAppBar-root,
+  .MuiDrawer-root,
+  .report-controls,
+  .MuiAlert-root,
+  .MuiToolbar-root {
+    display: none !important;
+  }
+
+  /* Reset the app background to plain white. */
+  body,
+  #root,
+  .MuiBox-root,
+  main,
+  .MuiContainer-root {
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  /* Remove layout padding/margins so the report fills the A4 page. */
+  main,
+  .MuiContainer-root {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* The report is the only visible content. */
+  .report-print-area {
+    display: block !important;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .report-print-area .MuiPaper-root {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Allow the report to flow onto multiple pages naturally.
+     Do NOT apply break-inside:avoid to the outer containers. */
+  .report-print-area .MuiBox-root {
+    break-inside: auto;
+  }
+
+  /* Keep the report header block together with the first table. */
+  .report-print-area .report-header {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    /* Start the header near the top printable margin. */
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Tighten header typography so the title sits close to the top. */
+  .report-print-area .report-header .MuiTypography-root {
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* Reduce the space between the header and the first inventory table. */
+  .report-print-area .category-group {
+    margin-top: 8px !important;
+  }
+
+  /* Keep each category title with the start of its table where possible. */
+  .report-print-area .category-title {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Clean table styling for print. */
+  .report-print-area table {
+    font-size: 11px;
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 !important;
+  }
+
+  .report-print-area .MuiTableCell-root {
+    padding: 4px 7px;
+    border: 1px solid #333 !important;
+    font-size: 11px;
+    line-height: 1.3;
+    background: #ffffff !important;
+  }
+
+  /* Repeat the table header on every printed page. */
+  .report-print-area thead {
+    display: table-header-group;
+  }
+
+  /* Prevent table rows from being split across pages. */
+  .report-print-area tbody tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Keep the signature block together and avoid splitting it. */
+  .report-print-area .report-signatures {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Page indicator placed in the upper-right corner of the report.
+   Uses position:fixed so it repeats on every printed page.
+   Sits within the @page top/right margin so it never overlaps
+   the header title or the inventory table. */
+@media print {
+  .report-print-area .report-page-indicator {
+    position: fixed;
+    top: 6mm;
+    right: 14mm;
+    font-size: 10px;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .report-print-area .report-page-indicator::after {
+    content: "Page " counter(page) " of " counter(pages);
+  }
+}

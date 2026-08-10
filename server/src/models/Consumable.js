@@ -9,20 +9,6 @@ const consumableSchema = new mongoose.Schema(
       minlength: [2, "Name must be at least 2 characters"],
       maxlength: [200, "Name cannot exceed 200 characters"],
     },
-    sku: {
-      type: String,
-      required: [true, "SKU is required"],
-      unique: true,
-      trim: true,
-      uppercase: true,
-      minlength: [2, "SKU must be at least 2 characters"],
-      maxlength: [50, "SKU cannot exceed 50 characters"],
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: [1000, "Description cannot exceed 1000 characters"],
-    },
     unit: {
       type: String,
       required: [true, "Unit of measure is required (e.g., box, pair, piece)"],
@@ -70,7 +56,7 @@ consumableSchema.virtual("stockStatus").get(function () {
 consumableSchema.set("toJSON", { virtuals: true });
 consumableSchema.set("toObject", { virtuals: true });
 
-consumableSchema.index({ name: "text", sku: "text", description: "text" });
+consumableSchema.index({ name: "text" });
 
 const Consumable = mongoose.model("Consumable", consumableSchema);
 

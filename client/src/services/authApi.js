@@ -35,3 +35,18 @@ export const getMe = async () => {
   }
   return result.user;
 };
+
+export const changePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+  const response = await api.put('/auth/change-password', {
+    currentPassword,
+    newPassword,
+    confirmPassword,
+  });
+  const result = response.data;
+  if (!result.success) {
+    const err = new Error(result.message || 'Failed to change password');
+    err.errors = result.errors || [];
+    throw err;
+  }
+  return result;
+};

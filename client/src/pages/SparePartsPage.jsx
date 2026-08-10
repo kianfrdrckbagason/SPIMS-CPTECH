@@ -57,7 +57,6 @@ const SPARE_PART_STATUSES = ['active', 'inactive', 'discontinued', 'archived'];
 
 const EMPTY_FORM = {
   name: '',
-  partNumber: 0,
   category: '',
   quantity: 0,
   status: 'active',
@@ -170,7 +169,6 @@ const SparePartsPage = () => {
     setEditingId(row._id);
     setFormData({
       name: row.name || '',
-      partNumber: row.partNumber ?? 0,
       category: typeof row.category === 'object' ? row.category?._id : row.category || '',
       quantity: row.quantity ?? 0,
       status: row.status || 'active',
@@ -282,9 +280,6 @@ const SparePartsPage = () => {
   const validateForm = () => {
     const errors = {};
     if (!formData.name?.trim()) errors.name = 'Name is required';
-    if (formData.partNumber !== '' && formData.partNumber !== null && !isNaN(Number(formData.partNumber))) {
-      if (Number(formData.partNumber) < 0) errors.partNumber = 'Part number must be zero or positive';
-    }
     if (!formData.category) errors.category = 'Category is required';
     if (formData.quantity === '' || formData.quantity === null || isNaN(Number(formData.quantity)))
       errors.quantity = 'Valid quantity is required';
@@ -299,7 +294,6 @@ const SparePartsPage = () => {
     try {
       const payload = {
         name: formData.name,
-        partNumber: Number(formData.partNumber) || 0,
         category: formData.category,
         quantity: Number(formData.quantity),
         status: formData.status,
@@ -393,7 +387,7 @@ const SparePartsPage = () => {
     () =>
       Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
-          {Array.from({ length: 11 }).map((__, j) => (
+          {Array.from({ length: 6 }).map((__, j) => (
             <TableCell key={j}>
               <Skeleton variant="text" />
             </TableCell>
@@ -402,6 +396,36 @@ const SparePartsPage = () => {
       )),
     []
   );
+
+  // Group parts by category (chronological within each category) and assign a
+  // sequential number that restarts at 1 whenever a new category begins.
+  const sortedItems = useMemo(() => {
+    const getCatName = (row) =>
+      typeof row.category === 'object' ? row.category?.name || '' : row.category || '';
+    return [...items].sort((a, b) => {
+      const catCompare = getCatName(a).localeCompare(getCatName(b));
+      if (catCompare !== 0) return catCompare;
+      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+    });
+  }, [items]);
+
+  const sequenceMap = useMemo(() => {
+    const map = {};
+    let currentCategory = null;
+    let counter = 0;
+    for (const row of sortedItems) {
+      const catName =
+        typeof row.category === 'object' ? row.category?.name || '' : row.category || '';
+      if (catName !== currentCategory) {
+        currentCategory = catName;
+        counter = 1;
+      } else {
+        counter += 1;
+      }
+      map[row._id] = counter;
+    }
+    return map;
+  }, [sortedItems]);
 
   return (
     <Box>
@@ -434,7 +458,7 @@ const SparePartsPage = () => {
               />
             </Grid>
             <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
+              <FormControl size="small" sx={{ minWidth: 160 }}>
                 <InputLabel id="sp-category-label">Category</InputLabel>
                 <Select
                   labelId="sp-category-label"
@@ -508,7 +532,7 @@ const SparePartsPage = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                items.map((row) => {
+                sortedItems.map((row) => {
                   const qty = Number(row.quantity) || 0;
                   const minStock = Number(row.minStockLevel) || 0;
                   const status = getStockStatusInfo(qty, minStock);
@@ -522,7 +546,7 @@ const SparePartsPage = () => {
                     >
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {row.partNumber ?? 0}
+                          {sequenceMap[row._id] ?? 0}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -636,7 +660,7 @@ const SparePartsPage = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            <Grid item xs={12} sm={8}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Name *"
@@ -645,27 +669,6 @@ const SparePartsPage = () => {
                 error={!!formErrors.name}
                 helperText={formErrors.name}
                 required
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Part Number"
-                type="number"
-                value={formData.partNumber}
-                onChange={(e) => {
-                  const parsed = parseInt(e.target.value, 10);
-                  const safe = isNaN(parsed) ? 0 : Math.max(0, parsed);
-                  setField('partNumber', safe);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === '-' || e.key === 'e' || e.key === 'E') {
-                    e.preventDefault();
-                  }
-                }}
-                error={!!formErrors.partNumber}
-                helperText={formErrors.partNumber || 'Zero or positive'}
-                InputProps={{ inputProps: { min: 0, step: 1 } }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>

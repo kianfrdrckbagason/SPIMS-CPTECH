@@ -53,8 +53,6 @@ const CONSUMABLE_STATUSES = ['active', 'inactive', 'discontinued'];
 
 const EMPTY_FORM = {
   name: '',
-  sku: '',
-  description: '',
   unit: '',
   quantity: 0,
   status: 'active',
@@ -138,8 +136,6 @@ const ConsumablesPage = () => {
     setEditingId(row._id);
     setFormData({
       name: row.name || '',
-      sku: row.sku || '',
-      description: row.description || '',
       unit: row.unit || '',
       quantity: row.quantity ?? 0,
       status: row.status || 'active',
@@ -167,7 +163,6 @@ const ConsumablesPage = () => {
   const validateForm = () => {
     const errors = {};
     if (!formData.name?.trim()) errors.name = 'Name is required';
-    if (!formData.sku?.trim()) errors.sku = 'SKU is required';
     if (!formData.unit?.trim()) errors.unit = 'Unit is required (e.g. box, pair, piece)';
     if (formData.quantity === '' || formData.quantity === null || isNaN(Number(formData.quantity)))
       errors.quantity = 'Valid quantity is required';
@@ -235,7 +230,7 @@ const ConsumablesPage = () => {
   const handleDelete = async (row) => {
     const result = await Swal.fire({
       title: 'Delete Consumable?',
-      text: `Are you sure you want to delete "${row.name}" (${row.sku})? This cannot be undone.`,
+      text: `Are you sure you want to delete "${row.name}"? This cannot be undone.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d32f2f',
@@ -273,7 +268,7 @@ const ConsumablesPage = () => {
     () =>
       Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
-          {Array.from({ length: 9 }).map((__, j) => (
+          {Array.from({ length: 5 }).map((__, j) => (
             <TableCell key={j}>
               <Skeleton variant="text" />
             </TableCell>
@@ -301,7 +296,7 @@ const ConsumablesPage = () => {
               <TextField
                 fullWidth
                 size="small"
-                placeholder="Search by name or SKU..."
+                placeholder="Search by name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 InputProps={{
@@ -334,7 +329,7 @@ const ConsumablesPage = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
+              <FormControl size="small" sx={{ minWidth: 160 }}>
                 <InputLabel id="con-status-label">Status</InputLabel>
                 <Select
                   labelId="con-status-label"
@@ -389,9 +384,7 @@ const ConsumablesPage = () => {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700 }}>Status</TableCell>
@@ -403,7 +396,7 @@ const ConsumablesPage = () => {
                 renderSkeletonRows
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 7 : 6} sx={{ py: 6 }}>
+                  <TableCell colSpan={isAdmin ? 5 : 4} sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
                       <FaBoxes style={{ fontSize: 40, opacity: 0.3, marginBottom: 8 }} />
                       <Typography variant="body1">No consumables found</Typography>
@@ -423,24 +416,10 @@ const ConsumablesPage = () => {
                       hover
                       sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
                     >
-                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                        {row.sku}
-                      </TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>
                           {row.name}
                         </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {row.description ? (
-                          <Typography variant="body2" color="text.secondary" noWrap>
-                            {row.description.length > 80
-                              ? row.description.slice(0, 80) + '...'
-                              : row.description}
-                          </Typography>
-                        ) : (
-                          '—'
-                        )}
                       </TableCell>
                       <TableCell>
                         <Chip label={row.unit || '—'} size="small" variant="outlined" />
@@ -508,7 +487,7 @@ const ConsumablesPage = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Name *"
@@ -519,29 +498,7 @@ const ConsumablesPage = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="SKU *"
-                value={formData.sku}
-                onChange={(e) => setField('sku', e.target.value.toUpperCase())}
-                error={!!formErrors.sku}
-                helperText={formErrors.sku}
-                required
-                inputProps={{ style: { textTransform: 'uppercase' } }}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                multiline
-                rows={2}
-                value={formData.description}
-                onChange={(e) => setField('description', e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
                 label="Unit *"
@@ -553,7 +510,7 @@ const ConsumablesPage = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
               <FormControl fullWidth>
                 <InputLabel id="con-form-status-label">Status</InputLabel>
                 <Select
@@ -570,7 +527,7 @@ const ConsumablesPage = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
                 label="Quantity *"

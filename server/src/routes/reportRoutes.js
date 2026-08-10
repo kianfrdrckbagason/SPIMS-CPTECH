@@ -4,6 +4,7 @@ import {
   generateStockStatusReport,
   generateBorrowedToolsReport,
   generateConsumablesReport,
+  generateMonthlyInventoryReport,
   getInventorySummaryReportData,
 } from "../controllers/reportController.js";
 import { protect } from "../middleware/auth.js";
@@ -17,6 +18,7 @@ router.get("/transactions", generateTransactionsReport);
 router.get("/stock-status", generateStockStatusReport);
 router.get("/borrowed-tools", generateBorrowedToolsReport);
 router.get("/consumables", generateConsumablesReport);
+router.get("/monthly-inventory", generateMonthlyInventoryReport);
 router.get("/inventory-summary", getInventorySummaryReportData);
 
 export default router;

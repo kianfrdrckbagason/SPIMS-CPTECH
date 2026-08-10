@@ -49,17 +49,6 @@ router.post(
       .withMessage("Consumable name is required")
       .isLength({ min: 2, max: 200 })
       .withMessage("Name must be between 2 and 200 characters"),
-    body("sku")
-      .trim()
-      .notEmpty()
-      .withMessage("SKU is required")
-      .isLength({ min: 2, max: 50 })
-      .withMessage("SKU must be between 2 and 50 characters"),
-    body("description")
-      .optional()
-      .trim()
-      .isLength({ max: 1000 })
-      .withMessage("Description cannot exceed 1000 characters"),
     body("unit")
       .trim()
       .notEmpty()
@@ -90,16 +79,6 @@ router.put(
       .trim()
       .isLength({ min: 2, max: 200 })
       .withMessage("Name must be between 2 and 200 characters"),
-    body("sku")
-      .optional()
-      .trim()
-      .isLength({ min: 2, max: 50 })
-      .withMessage("SKU must be between 2 and 50 characters"),
-    body("description")
-      .optional()
-      .trim()
-      .isLength({ max: 1000 })
-      .withMessage("Description cannot exceed 1000 characters"),
     body("unit")
       .optional()
       .trim()

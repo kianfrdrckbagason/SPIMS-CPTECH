@@ -27,6 +27,13 @@ export const getInventorySummary = async () => {
   return response.data;
 };
 
+export const getMonthlyInventoryReport = async (month, category = '') => {
+  const response = await api.get(`${BASE_PATH}/monthly-inventory`, {
+    params: { month, category },
+  });
+  return response.data;
+};
+
 export const downloadFile = (url, filename) => {
   const token = localStorage.getItem('token');
   const headers = token ? { Authorization: `Bearer ${token}` } : {};

@@ -5,6 +5,7 @@ import {
   login,
   logout,
   getMe,
+  changePassword,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/auth.js";
 import { authorize } from "../middleware/authorize.js";
@@ -31,6 +32,8 @@ router.post(
 router.post("/logout", logout);
 
 router.get("/me", protect, getMe);
+
+router.put("/change-password", protect, changePassword);
 
 router.get("/admin-only", protect, authorize("admin"), (req, res) => {
   res.status(200).json({

@@ -30,6 +30,7 @@ import {
   FormControl,
 } from '@mui/material';
 import {
+  FaPlus,
   FaTools,
   FaWrench,
   FaCheckCircle,
@@ -125,8 +126,19 @@ const ToolsInventoryPage = () => {
   });
   const [returnSubmitting, setReturnSubmitting] = useState(false);
 
-  // Status action loading
+// Status action loading
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Add Tool dialog
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addSubmitting, setAddSubmitting] = useState(false);
+const [addForm, setAddForm] = useState({
+    name: '',
+    category: '',
+    condition: 'good',
+    status: 'available',
+  });
+  const [addFormErrors, setAddFormErrors] = useState({});
 
   const fetchTools = useCallback(async () => {
     try {
@@ -373,10 +385,87 @@ const ToolsInventoryPage = () => {
       toast.success(`Tool status updated to ${label}`);
       await fetchTools();
       await refreshSelectedTool();
-    } catch (error) {
+} catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to update tool status');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+// ---- Add Tool ----
+  const openAddDialog = () => {
+    setAddForm({
+      name: '',
+      category: '',
+      condition: 'good',
+      status: 'available',
+    });
+    setAddFormErrors({});
+    setAddDialogOpen(true);
+  };
+
+  const closeAddDialog = () => {
+    setAddDialogOpen(false);
+  };
+
+  const setAddField = (field, value) => {
+    setAddForm((prev) => ({ ...prev, [field]: value }));
+    if (addFormErrors[field]) {
+      setAddFormErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+const validateAddForm = () => {
+    const errors = {};
+    if (!addForm.name?.trim()) errors.name = 'Tool name is required';
+    else if (addForm.name.trim().length < 2) errors.name = 'Name must be at least 2 characters';
+    if (!addForm.category?.trim()) errors.category = 'Category is required';
+    setAddFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleAddSubmit = async () => {
+    if (!validateAddForm()) return;
+    setAddSubmitting(true);
+    try {
+      const payload = {
+        name: addForm.name.trim(),
+        toolCode: `TOOL-${Date.now()}`,
+        category: addForm.category.trim(),
+        condition: addForm.condition,
+        status: addForm.status,
+      };
+      const res = await toolApi.createTool(payload);
+      if (res?.success) {
+        toast.success(res.message || 'Tool created successfully');
+        setAddDialogOpen(false);
+        await fetchTools();
+      } else {
+        if (res?.errors && Array.isArray(res.errors)) {
+          const fieldErrors = {};
+          res.errors.forEach((e) => {
+            if (e.field) fieldErrors[e.field] = e.message;
+          });
+          if (Object.keys(fieldErrors).length) setAddFormErrors(fieldErrors);
+        }
+        toast.error(res?.message || 'Failed to create tool');
+      }
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        const fieldErrors = {};
+        error.response.data.errors.forEach((e) => {
+          if (e.field) fieldErrors[e.field] = e.message;
+        });
+        if (Object.keys(fieldErrors).length) setAddFormErrors(fieldErrors);
+      }
+      toast.error(msg || 'Failed to create tool');
+    } finally {
+      setAddSubmitting(false);
     }
   };
 
@@ -423,15 +512,26 @@ const ToolsInventoryPage = () => {
             </Stack>
           </Paper>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <Button
-            variant="contained"
-            startIcon={<FaWrench />}
-            fullWidth
-            sx={{ height: '100%', minHeight: 42 }}
-          >
-            Add New Tool
-          </Button>
+<Grid item xs={12} md={4}>
+          {isAdmin ? (
+            <Button
+              variant="contained"
+              startIcon={<FaPlus />}
+              fullWidth
+              sx={{ height: '100%', minHeight: 42 }}
+              onClick={openAddDialog}
+            >
+              Add New Tool
+            </Button>
+          ) : (
+            <Chip
+              icon={<FaWrench />}
+              label={`${stats.total} registered tools`}
+              color="primary"
+              variant="outlined"
+              sx={{ height: '100%', minHeight: 42, width: '100%', justifyContent: 'center' }}
+            />
+          )}
         </Grid>
       </Grid>
 
@@ -505,28 +605,40 @@ const ToolsInventoryPage = () => {
                       size="small"
                     />
                   </TableCell>
-                  <TableCell align="center">
-                    <Stack direction="row" spacing={1} justifyContent="center">
+<TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                    <Box
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 0.5,
+                        width: '100%',
+                      }}
+                    >
                       <Tooltip title="View Details">
-                        <IconButton size="small" color="primary" onClick={() => handleViewDetails(tool)}>
-                          <FaEye />
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          sx={{ width: 32, height: 32 }}
+                          onClick={() => handleViewDetails(tool)}
+                        >
+                          <FaEye fontSize={14} />
                         </IconButton>
                       </Tooltip>
                       {isAdmin && (
                         <Tooltip title={tool.status === 'available' ? 'Borrow Tool' : 'Tool not available for borrow'}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              color="warning"
-                              onClick={() => handleBorrowTool(tool)}
-                              disabled={tool.status !== 'available'}
-                            >
-                              <FaShareSquare />
-                            </IconButton>
-                          </span>
+                          <IconButton
+                            size="small"
+                            color="warning"
+                            sx={{ width: 32, height: 32 }}
+                            onClick={() => handleBorrowTool(tool)}
+                            disabled={tool.status !== 'available'}
+                          >
+                            <FaShareSquare fontSize={14} />
+                          </IconButton>
                         </Tooltip>
                       )}
-                    </Stack>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -901,13 +1013,104 @@ const ToolsInventoryPage = () => {
           <Button onClick={closeReturnDialog} disabled={returnSubmitting}>
             Cancel
           </Button>
-          <Button
+<Button
             variant="contained"
             color="success"
             onClick={handleReturnSubmit}
             disabled={returnSubmitting}
           >
             {returnSubmitting ? 'Processing...' : 'Return Tool'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Tool Dialog */}
+      <Dialog
+        open={addDialogOpen}
+        onClose={addSubmitting ? undefined : closeAddDialog}
+        maxWidth="md"
+        fullWidth
+        scroll="paper"
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FaPlus />
+            <Typography variant="h6" fontWeight={700}>
+              Add New Tool
+            </Typography>
+          </Box>
+        </DialogTitle>
+<DialogContent dividers>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Tool Name *"
+                value={addForm.name}
+                onChange={(e) => setAddField('name', e.target.value)}
+                error={!!addFormErrors.name}
+                helperText={addFormErrors.name}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Category *"
+                value={addForm.category}
+                onChange={(e) => setAddField('category', e.target.value)}
+                error={!!addFormErrors.category}
+                helperText={addFormErrors.category}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel id="add-tool-condition-label">Condition</InputLabel>
+                <Select
+                  labelId="add-tool-condition-label"
+                  label="Condition"
+                  value={addForm.condition}
+                  onChange={(e) => setAddField('condition', e.target.value)}
+                >
+                  {conditionOptions.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel id="add-tool-status-label">Status</InputLabel>
+                <Select
+                  labelId="add-tool-status-label"
+                  label="Status"
+                  value={addForm.status}
+                  onChange={(e) => setAddField('status', e.target.value)}
+                >
+                  <MenuItem value="available">Available</MenuItem>
+                  <MenuItem value="maintenance">Under Maintenance</MenuItem>
+                  <MenuItem value="damaged">Damaged</MenuItem>
+                  <MenuItem value="lost">Lost</MenuItem>
+                  <MenuItem value="retired">Retired</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={closeAddDialog} disabled={addSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleAddSubmit}
+            disabled={addSubmitting}
+          >
+            {addSubmitting ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

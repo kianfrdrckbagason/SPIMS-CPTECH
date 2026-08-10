@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
-  Grid,
+  Divider,
+  FormControl,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -15,67 +19,44 @@ import {
   TableHead,
   TableRow,
   Typography,
-  TextField,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormControl,
 } from '@mui/material';
-import { FaChartBar, FaFilePdf, FaFileExcel, FaClipboardList, FaDownload } from 'react-icons/fa';
+import { FaPrint, FaFileInvoice } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import * as reportApi from '../services/reportApi';
-import * as dailyConsumptionApi from '../services/dailyConsumptionApi';
 import * as categoryApi from '../services/categoryApi';
-import * as sparePartApi from '../services/sparePartApi';
 
-const reportItems = [
-  { title: 'Daily inventory movement', description: 'Stock in, stock out, and adjustments', type: 'Daily' },
-  { title: 'Low stock watchlist', description: 'Items below minimum stock', type: 'Low Stock' },
-  { title: 'Borrowed tools report', description: 'Overdue and active loans', type: 'Borrowed Tools' },
-  { title: 'Consumables summary', description: 'Usage per line and shift', type: 'Consumables' },
+const MONTH_LABELS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+// Build a list of the last 24 months (e.g. "August 2026") for the dropdown
+const buildMonthOptions = () => {
+  const now = new Date();
+  const options = [];
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
+    options.push({ value, label });
+  }
+  return options;
+};
+
 const ReportsPage = () => {
-  const [summary, setSummary] = useState({ totalSpareParts: 0, lowStockItems: 0, outOfStockItems: 0 });
-  const [loading, setLoading] = useState(true);
-  const [dailyTransactions, setDailyTransactions] = useState([]);
-  const [loadingDailyTransactions, setLoadingDailyTransactions] = useState(false);
+  const monthOptions = useMemo(buildMonthOptions, []);
+  const [month, setMonth] = useState(monthOptions[0].value);
+  const [category, setCategory] = useState('');
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [spareParts, setSpareParts] = useState([]);
-
-  useEffect(() => {
-    let active = true;
-    const fetchSummary = async () => {
-      try {
-        const response = await reportApi.getInventorySummary();
-        if (active && response?.success) {
-          setSummary(response.data || summary);
-        }
-      } catch (error) {
-        if (active) {
-          setSummary({ totalSpareParts: 128, lowStockItems: 12, outOfStockItems: 4 });
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    fetchSummary();
-    return () => {
-      active = false;
-    };
-  }, []);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
     const fetchCategories = async () => {
       try {
         const res = await categoryApi.getAllCategories({ status: 'active' });
-        if (active) {
-          setCategories(res?.data || []);
-        }
+        if (active) setCategories(res?.data || []);
       } catch (err) {
         console.error('Failed to fetch categories:', err);
       }
@@ -86,165 +67,83 @@ const ReportsPage = () => {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const fetchDailyTransactions = async () => {
-      setLoadingDailyTransactions(true);
-      try {
-        const params = {
-          month: month,
-        };
-        if (selectedCategory) params.category = selectedCategory;
-        
-        // Fetch daily transactions
-        const txRes = await dailyConsumptionApi.getAllDailyConsumptions(params);
-        if (active) {
-          setDailyTransactions(txRes?.data || []);
-        }
-        
-        // Fetch spare parts for the selected category to get B.I. values
-        const spParams = { limit: 1000 };
-        if (selectedCategory) spParams.category = selectedCategory;
-        const spRes = await sparePartApi.getAllSpareParts(spParams);
-        if (active) {
-          setSpareParts(spRes?.data || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch daily transactions:', err);
-        if (active) {
-          setDailyTransactions([]);
-          setSpareParts([]);
-        }
-      } finally {
-        if (active) setLoadingDailyTransactions(false);
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const response = await reportApi.getMonthlyInventoryReport(month, category);
+      if (response?.success) {
+        setReport(response.data);
+      } else {
+        toast.error(response?.message || 'Failed to generate report');
       }
-    };
-    fetchDailyTransactions();
-    return () => {
-      active = false;
-    };
-  }, [month, selectedCategory]);
+    } catch (err) {
+      console.error('Failed to generate monthly report:', err);
+      toast.error('Failed to generate report. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const exportToExcel = () => {
-    if (spareParts.length === 0) {
-      toast.error('No spare parts to export');
+  const handlePrint = () => {
+    if (!report) {
+      toast.error('Please generate a report first');
       return;
     }
-
-    try {
-      const [year, monthNum] = month.split('-');
-      const daysInMonth = new Date(year, monthNum, 0).getDate();
-      
-      // Create header
-      const header = ['PARTS', 'B.I.', ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)), 'REMARKS'];
-      const data = [header];
-
-      // Add part rows with B.I. and daily transactions
-      spareParts.forEach(part => {
-        const biValue = Number(part.quantity || 0);
-        const partTransactions = dailyTransactions.filter(t => 
-          (t.sparePart?._id === part._id || t.sparePart === part._id)
-        );
-        
-        const dailyValues = Array(daysInMonth).fill(0);
-        partTransactions.forEach(tx => {
-          const dayNum = new Date(tx.date || tx.createdAt).getDate() - 1;
-          if (dayNum >= 0 && dayNum < daysInMonth) {
-            dailyValues[dayNum] += Number(tx.quantity || 0);
-          }
-        });
-
-        const row = [part.name, biValue, ...dailyValues, ''];
-        data.push(row);
-      });
-
-      // Convert to CSV
-      const csv = data.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-      
-      // Create blob and download
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `daily-transactions-${month}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast.success('Report exported successfully');
-    } catch (error) {
-      console.error('Export failed:', error);
-      toast.error('Failed to export report');
-    }
+    window.print();
   };
 
-  const handleExport = (format, title) => {
-    toast.success(`${title} export prepared as ${format.toUpperCase()}.`);
-  };
+  const generatedDate = report?.generatedAt
+    ? new Date(report.generatedAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : '';
+
+  const selectedCatName = category
+    ? categories.find((c) => c._id === category)?.name || ''
+    : '';
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} mb={3}>
-        <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            Reports & Export Center
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Generate printable reports for management and operations teams.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<FaChartBar />}>
-          Create management report
-        </Button>
-      </Stack>
+      {/* Control panel (hidden when printing) */}
+      <div className="report-controls">
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} mb={3}>
+          <Box>
+            <Typography variant="h4" fontWeight={700} gutterBottom>
+              Monthly Inventory Report
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Generate a professional, printable monthly inventory report for your supervisor.
+            </Typography>
+          </Box>
+        </Stack>
 
-      <Grid container spacing={2} mb={3}>
-        {[
-          { label: 'Inventory items', value: summary.totalSpareParts },
-          { label: 'Low stock', value: summary.lowStockItems },
-          { label: 'Out of stock', value: summary.outOfStockItems },
-        ].map((item) => (
-          <Grid item xs={12} md={4} key={item.label}>
-            <Card>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                <Typography variant="h5" fontWeight={700}>{item.value}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Daily Transactions Report Section */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" fontWeight={700} mb={2}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <FaClipboardList /> Daily Transactions Report
-            </Stack>
-          </Typography>
-          
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField
-                fullWidth
-                type="month"
-                label="Month"
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                size="small"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControl fullWidth size="small">
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+              <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 200 } }}>
+                <InputLabel id="report-month-label">Month</InputLabel>
+                <Select
+                  labelId="report-month-label"
+                  label="Month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                >
+                  {monthOptions.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 220 } }}>
                 <InputLabel id="report-category-label">Category</InputLabel>
                 <Select
                   labelId="report-category-label"
                   label="Category"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
                 >
                   <MenuItem value="">All Categories</MenuItem>
                   {categories.map((c) => (
@@ -254,114 +153,129 @@ const ReportsPage = () => {
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6} md={6} sx={{ display: 'flex', gap: 1 }}>
               <Button
                 variant="contained"
                 color="primary"
-                startIcon={<FaDownload />}
-                onClick={exportToExcel}
-                disabled={loadingDailyTransactions || spareParts.length === 0}
+                size="medium"
+                startIcon={<FaFileInvoice />}
+                onClick={handleGenerate}
+                disabled={loading}
               >
-                Export to Excel
+                {loading ? 'Generating...' : 'Generate Report'}
               </Button>
-            </Grid>
-          </Grid>
+              <Button
+                variant="outlined"
+                color="primary"
+                size="medium"
+                startIcon={<FaPrint />}
+                onClick={handlePrint}
+                disabled={!report}
+              >
+                Print / Export PDF
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      </div>
 
-          {loadingDailyTransactions ? (
-            <Alert severity="info">Loading transactions...</Alert>
-          ) : spareParts.length === 0 ? (
-            <Alert severity="warning">No spare parts found for the selected category.</Alert>
-          ) : (
-            <TableContainer component={Paper} sx={{ maxHeight: '600px', overflow: 'auto' }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 150 }}>Parts</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 700, minWidth: 50 }}>B.I.</TableCell>
-                    {Array.from({ length: new Date(month + '-01').getDate() }).map((_, i) => (
-                      <TableCell key={i} align="center" sx={{ fontWeight: 700, minWidth: 35 }}>
-                        {i + 1}
-                      </TableCell>
-                    ))}
-                    <TableCell sx={{ fontWeight: 700, minWidth: 100 }}>Remarks</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {spareParts.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={new Date(month + '-01').getDate() + 3} sx={{ textAlign: 'center', py: 3 }}>
-                        No spare parts found for the selected category.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    spareParts.map((part) => {
-                      const biValue = Number(part.quantity || 0);
-                      const partTransactions = dailyTransactions.filter(t => 
-                        (t.sparePart?._id === part._id || t.sparePart === part._id)
-                      );
-                      
-                      const daysInMonth = new Date(month + '-01').getDate();
-                      const dailyValues = Array(daysInMonth).fill(0);
-                      
-                      partTransactions.forEach(tx => {
-                        const dayNum = new Date(tx.date || tx.createdAt).getDate() - 1;
-                        if (dayNum >= 0 && dayNum < daysInMonth) {
-                          dailyValues[dayNum] += Number(tx.quantity || 0);
-                        }
-                      });
+      {/* Printable report area */}
+      {loading && (
+        <Alert severity="info" sx={{ mb: 2 }}>Generating report...</Alert>
+      )}
 
-                      return (
-                        <TableRow key={part._id} hover>
-                          <TableCell sx={{ fontWeight: 500 }}>{part.name}</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 600, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
-                            {biValue}
-                          </TableCell>
-                          {dailyValues.map((val, idx) => (
-                            <TableCell key={idx} align="center">
-                              <Box sx={{ bgcolor: val > 0 ? 'success.light' : 'transparent', px: 0.5, borderRadius: 0.5 }}>
-                                {val}
-                              </Box>
-                            </TableCell>
-                          ))}
-                          <TableCell>—</TableCell>
+      {report ? (
+        <Box className="report-print-area">
+          <Paper elevation={0} sx={{ p: { xs: 2, sm: 4 }, bgcolor: 'background.paper' }}>
+{/* Header */}
+            <Box className="report-header" sx={{ textAlign: 'center', mb: 3, position: 'relative' }}>
+              <span className="report-page-indicator" aria-hidden="true" />
+              <Typography variant="h5" fontWeight={800} letterSpacing={1}>
+                SPIMS-CPTECH
+              </Typography>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                SPARE PARTS INVENTORY MONTHLY REPORT
+              </Typography>
+              <Divider sx={{ my: 1.5 }} />
+              <Typography variant="body1" fontWeight={600}>
+                Month: {report.monthLabel}
+              </Typography>
+              {selectedCatName && (
+                <Typography variant="body1">
+                  Category: {selectedCatName}
+                </Typography>
+              )}
+            </Box>
+
+            {/* Inventory summary */}
+            {report.categories.map((cat) => (
+              <Box key={cat.category} className="category-group" sx={{ mb: 3 }}>
+                <Typography
+                  className="category-title"
+                  variant="subtitle1"
+                  fontWeight={700}
+                  sx={{ mb: 1, textTransform: 'uppercase' }}
+                >
+                  {cat.category}
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Part</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>Unit</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>Beginning</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>Stock In</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>Stock Out</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>Ending</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {cat.items.map((item, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{cat.category}</TableCell>
+                          <TableCell>{item.part}</TableCell>
+                          <TableCell align="center">{item.unit}</TableCell>
+                          <TableCell align="center">{item.beginning}</TableCell>
+                          <TableCell align="center">{item.stockIn}</TableCell>
+                          <TableCell align="center">{item.stockOut}</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700 }}>{item.ending}</TableCell>
                         </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </CardContent>
-      </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            ))}
 
-      {loading ? (
-        <Alert severity="info">Preparing the latest report summary…</Alert>
+            {/* Signatures */}
+            <Box className="report-signatures" sx={{ mt: 6 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                Date Generated: {generatedDate}
+              </Typography>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between"
+                spacing={4}
+                sx={{ mt: 6 }}
+              >
+                {['Prepared by', 'Reviewed by', 'Approved by'].map((label) => (
+                  <Box key={label} sx={{ textAlign: 'center', flex: 1 }}>
+                    <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 1, minWidth: 160 }} />
+                    <Typography variant="body2" fontWeight={600}>{label}</Typography>
+                    <Typography variant="caption" color="text.secondary">Name / Signature / Date</Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          </Paper>
+        </Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Report Type</TableCell>
-                <TableCell>Focus Area</TableCell>
-                <TableCell>Availability</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow>
-                <TableCell><Stack direction="row" spacing={1} alignItems="center"><FaClipboardList /> Daily Transactions</Stack></TableCell>
-                <TableCell>Current operations</TableCell>
-                <TableCell>Ready</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><Stack direction="row" spacing={1} alignItems="center"><FaClipboardList /> Monthly Consumption</Stack></TableCell>
-                <TableCell>Production consumption</TableCell>
-                <TableCell>Ready</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Paper elevation={0} sx={{ p: 4, textAlign: 'center', bgcolor: 'background.paper' }}>
+          <Typography variant="body1" color="text.secondary">
+            Select a month and click <strong>Generate Report</strong> to preview the monthly inventory report.
+          </Typography>
+        </Paper>
       )}
     </Box>
   );

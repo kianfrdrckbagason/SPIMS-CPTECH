@@ -369,6 +369,113 @@ export const generateConsumablesReport = async (req, res) => {
   }
 };
 
+export const generateMonthlyInventoryReport = async (req, res) => {
+  try {
+    const { month, category } = req.query;
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid month in YYYY-MM format is required",
+      });
+    }
+
+    const [year, monthNum] = month.split("-").map(Number);
+    const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+    // Sum of stock in / adjustment-increase quantities per spare part in the selected month
+    const stockInAgg = await Transaction.aggregate([
+      {
+        $match: {
+          itemType: "sparePart",
+          date: { $gte: start, $lte: end },
+          $or: [
+            { type: "stockIn" },
+            { type: "adjustment", adjustmentType: "increase" },
+          ],
+        },
+      },
+      { $group: { _id: "$sparePart", total: { $sum: "$quantity" } } },
+    ]);
+
+    // Sum of stock out / adjustment-decrease quantities per spare part in the selected month
+    const stockOutAgg = await Transaction.aggregate([
+      {
+        $match: {
+          itemType: "sparePart",
+          date: { $gte: start, $lte: end },
+          $or: [
+            { type: "stockOut" },
+            { type: "adjustment", adjustmentType: "decrease" },
+          ],
+        },
+      },
+      { $group: { _id: "$sparePart", total: { $sum: "$quantity" } } },
+    ]);
+
+    const stockInMap = {};
+    stockInAgg.forEach((r) => {
+      if (r._id) stockInMap[r._id.toString()] = r.total;
+    });
+const stockOutMap = {};
+    stockOutAgg.forEach((r) => {
+      if (r._id) stockOutMap[r._id.toString()] = r.total;
+    });
+
+    const partQuery = { status: { $ne: "archived" } };
+    if (category) partQuery.category = category;
+
+    const parts = await SparePart.find(partQuery)
+      .populate("category", "name")
+      .sort({ name: 1 });
+
+    const categoryMap = new Map();
+
+    parts.forEach((part) => {
+      const categoryName = part.category?.name || "Uncategorized";
+      const stockIn = stockInMap[part._id.toString()] || 0;
+      const stockOut = stockOutMap[part._id.toString()] || 0;
+      const ending = Number(part.quantity || 0);
+      const beginning = ending - stockIn + stockOut;
+
+      if (!categoryMap.has(categoryName)) {
+        categoryMap.set(categoryName, {
+          category: categoryName,
+          items: [],
+        });
+      }
+
+      categoryMap.get(categoryName).items.push({
+        part: part.name,
+        unit: "pcs",
+        beginning,
+        stockIn,
+        stockOut,
+        ending,
+      });
+    });
+
+    const categories = Array.from(categoryMap.values());
+
+    res.status(200).json({
+      success: true,
+      data: {
+        month,
+        monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        }),
+        categories,
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("generateMonthlyInventoryReport error:", error);
+    res.status(500).json({ success: false, message: "Server error generating monthly inventory report" });
+  }
+};
+
 export const getInventorySummaryReportData = async (req, res) => {
   try {
     const [totalParts, totalCats, totalConsumables, totalTools, totalBorrowed, lowStock, outOfStock] = await Promise.all([

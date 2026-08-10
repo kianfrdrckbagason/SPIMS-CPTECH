@@ -22,6 +22,11 @@ export const updateCategory = async (id, data) => {
   return response.data;
 };
 
+export const archiveCategory = async (id) => {
+  const response = await api.put(`${BASE_PATH}/${id}/archive`);
+  return response.data;
+};
+
 export const deleteCategory = async (id) => {
   const response = await api.delete(`${BASE_PATH}/${id}`);
   return response.data;

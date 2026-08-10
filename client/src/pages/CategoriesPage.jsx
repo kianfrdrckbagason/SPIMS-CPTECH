@@ -28,11 +28,9 @@ import {
   Tooltip,
   LinearProgress,
   Skeleton,
-  Stack,
 } from '@mui/material';
-import { FaPlus, FaEdit, FaTrash, FaSearch, FaArchive } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaSearch } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import * as categoryApi from '../services/categoryApi';
 import { getAllSpareParts } from '../services/sparePartApi';
@@ -181,30 +179,6 @@ const CategoriesPage = () => {
     }
   };
 
-  const handleDelete = async (category) => {
-    const result = await Swal.fire({
-      title: category.status === 'archived' ? 'Delete Category?' : 'Archive Category?',
-      text: category.status === 'archived'
-        ? `Are you sure you want to permanently delete "${category.name}"? This action cannot be undone.`
-        : `Are you sure you want to archive "${category.name}"? It will no longer appear in active lists.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: category.status === 'archived' ? '#d32f2f' : '#ed6c02',
-      cancelButtonColor: '#757575',
-      confirmButtonText: category.status === 'archived' ? 'Yes, Delete' : 'Yes, Archive',
-      cancelButtonText: 'Cancel',
-    });
-    if (!result.isConfirmed) return;
-    try {
-      const response = await categoryApi.deleteCategory(category._id || category.id);
-      toast.success(response.message || (category.status === 'archived' ? 'Category deleted' : 'Category archived'));
-      fetchCategories();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to process category');
-      console.error(error);
-    }
-  };
-
   const sortedCategories = useMemo(() => {
     return [...categories].sort((a, b) => {
       const sa = a.sortOrder ?? 0;
@@ -222,7 +196,7 @@ const CategoriesPage = () => {
   const renderTableSkeleton = () =>
     Array.from({ length: 5 }).map((_, i) => (
       <TableRow key={i}>
-        {Array.from({ length: 6 }).map((__, j) => (
+        {Array.from({ length: 5 }).map((__, j) => (
           <TableCell key={j}>
             <Skeleton variant="text" />
           </TableCell>
@@ -260,22 +234,24 @@ const CategoriesPage = () => {
               />
             </Grid>
             <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1, flexWrap: 'wrap' }}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {['all', ...statusOptions].map((status) => (
-                  <Chip
-                    key={status}
-                    label={status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
-                    color={statusFilter === status ? (status === 'all' ? 'primary' : statusColors[status]) : 'default'}
-                    variant={statusFilter === status ? 'filled' : 'outlined'}
-                    onClick={() => {
-                      setStatusFilter(status);
-                      setPage(0);
-                    }}
-                    clickable
-                    size="small"
-                  />
-                ))}
-              </Stack>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Category Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="Category Status"
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <MenuItem value="all">All</MenuItem>
+                  {statusOptions.map((status) => (
+                    <MenuItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               {isAdmin && (
                 <Button
                   variant="contained"
@@ -298,7 +274,6 @@ const CategoriesPage = () => {
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
                 <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Machine</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Sort Order</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -310,7 +285,7 @@ const CategoriesPage = () => {
                 renderTableSkeleton()
               ) : paginatedCategories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                     <Typography variant="body1" color="text.secondary">
                       No categories found
                     </Typography>
@@ -332,11 +307,6 @@ const CategoriesPage = () => {
                           )}
                         </Typography>
                       </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 280 }} noWrap title={category.description}>
-                          {category.description || '-'}
-                        </Typography>
-                      </TableCell>
                       <TableCell>{category.machine || '-'}</TableCell>
                       <TableCell>{category.sortOrder ?? 0}</TableCell>
                       <TableCell>
@@ -352,15 +322,6 @@ const CategoriesPage = () => {
                             <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => handleOpenEdit(category)}>
                                 <FaEdit />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title={category.status === 'archived' ? 'Delete Permanently' : 'Archive'}>
-                              <IconButton
-                                size="small"
-                                color={category.status === 'archived' ? 'error' : 'warning'}
-                                onClick={() => handleDelete(category)}
-                              >
-                                {category.status === 'archived' ? <FaTrash /> : <FaArchive />}
                               </IconButton>
                             </Tooltip>
                           </Box>
@@ -494,3 +455,4 @@ const CategoriesPage = () => {
 };
 
 export default CategoriesPage;
+

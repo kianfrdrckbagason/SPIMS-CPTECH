@@ -15,27 +15,10 @@ export const createConsumable = async (req, res) => {
   }
 
   try {
-    const {
-      name,
-      sku,
-      description,
-      unit,
-      quantity,
-      status,
-    } = req.body;
-
-    const existingSku = await Consumable.findOne({ sku });
-    if (existingSku) {
-      return res.status(400).json({
-        success: false,
-        message: "Consumable with this SKU already exists",
-      });
-    }
+    const { name, unit, quantity, status } = req.body;
 
     const consumable = await Consumable.create({
       name,
-      sku,
-      description,
       unit,
       quantity: quantity ?? 0,
       status: status || "active",
@@ -56,13 +39,6 @@ export const createConsumable = async (req, res) => {
         success: false,
         message: "Validation failed",
         errors,
-      });
-    }
-
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "Consumable with this SKU already exists",
       });
     }
 
@@ -88,11 +64,7 @@ export const getConsumables = async (req, res) => {
     const query = {};
 
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { sku: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-      ];
+      query.name = { $regex: search, $options: "i" };
     }
 
     if (unit) {
@@ -177,14 +149,7 @@ export const updateConsumable = async (req, res) => {
   }
 
   try {
-    const {
-      name,
-      sku,
-      description,
-      unit,
-      quantity,
-      status,
-    } = req.body;
+    const { name, unit, quantity, status } = req.body;
 
     let consumable = await Consumable.findById(req.params.id);
 
@@ -195,20 +160,8 @@ export const updateConsumable = async (req, res) => {
       });
     }
 
-    if (sku && sku !== consumable.sku) {
-      const existingSku = await Consumable.findOne({ sku });
-      if (existingSku) {
-        return res.status(400).json({
-          success: false,
-          message: "Consumable with this SKU already exists",
-        });
-      }
-    }
-
     const updateData = {};
     if (name !== undefined) updateData.name = name;
-    if (sku !== undefined) updateData.sku = sku;
-    if (description !== undefined) updateData.description = description;
     if (unit !== undefined) updateData.unit = unit;
     if (quantity !== undefined) updateData.quantity = quantity;
     if (status !== undefined) updateData.status = status;
@@ -241,13 +194,6 @@ export const updateConsumable = async (req, res) => {
         success: false,
         message: "Validation failed",
         errors,
-      });
-    }
-
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "Consumable with this SKU already exists",
       });
     }
 

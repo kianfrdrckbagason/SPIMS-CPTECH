@@ -136,17 +136,12 @@ export const returnTool = async (req, res) => {
     });
   }
 
-  const session = await BorrowedTool.startSession();
-  session.startTransaction();
-
   try {
     const { id } = req.params;
     const { actualReturnDate, toolConditionOnReturn, receivedBy, remarks } = req.body;
 
-    const borrowedTool = await BorrowedTool.findById(id).session(session);
+    const borrowedTool = await BorrowedTool.findById(id);
     if (!borrowedTool) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         success: false,
         message: "Borrowed tool record not found",
@@ -154,18 +149,14 @@ export const returnTool = async (req, res) => {
     }
 
     if (borrowedTool.status === "returned") {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({
         success: false,
         message: "Tool has already been returned",
       });
     }
 
-    const toolInventory = await ToolInventory.findById(borrowedTool.tool).session(session);
+    const toolInventory = await ToolInventory.findById(borrowedTool.tool);
     if (!toolInventory) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         success: false,
         message: "Tool inventory not found",
@@ -186,7 +177,7 @@ export const returnTool = async (req, res) => {
     if (remarks) {
       borrowedTool.remarks = remarks;
     }
-    await borrowedTool.save({ session });
+    await borrowedTool.save();
 
     if (!isLost) {
       toolInventory.availableQuantity += borrowedTool.quantity;
@@ -199,52 +190,38 @@ export const returnTool = async (req, res) => {
       toolInventory.totalQuantity = Math.max(0, toolInventory.totalQuantity - borrowedTool.quantity);
     } else if (toolInventory.status === "borrowed" && toolInventory.availableQuantity > 0) {
       toolInventory.status = "available";
-    } else if (toolInventory.status === "maintenance") {
     }
 
-    await toolInventory.save({ session });
+    await toolInventory.save();
 
-    await Transaction.create(
-      [
-        {
-          type: "returnTool",
-          itemType: "tool",
-          tool: toolInventory._id,
-          quantity: borrowedTool.quantity,
-          date: actualReturnDate || Date.now(),
-          employeeName: borrowedTool.borrowerName,
-          department: borrowedTool.department,
-          receivedBy: req.user.fullName,
-          remarks: `Condition on return: ${toolConditionOnReturn}${remarks ? ` - ${remarks}` : ""}`,
-          user: req.user._id,
-        },
-      ],
-      { session }
-    );
+    await Transaction.create({
+      type: "returnTool",
+      itemType: "tool",
+      tool: toolInventory._id,
+      quantity: borrowedTool.quantity,
+      date: actualReturnDate || Date.now(),
+      employeeName: borrowedTool.borrowerName,
+      department: borrowedTool.department,
+      receivedBy: req.user.fullName,
+      remarks: `Condition on return: ${toolConditionOnReturn}${remarks ? ` - ${remarks}` : ""}`,
+      user: req.user._id,
+    });
 
     if (isDamaged || isLost) {
       const notifSeverity = isLost ? "critical" : "warning";
-      const notifType = isLost ? "system" : "system";
-      await Notification.create(
-        [
-          {
-            type: notifType,
-            severity: notifSeverity,
-            title: isLost ? "Tool Reported Lost" : "Tool Reported Damaged",
-            message: `${toolInventory.name} (${toolInventory.toolCode}) was reported ${isLost ? "lost" : "damaged"} upon return by ${borrowedTool.borrowerName}. Quantity: ${borrowedTool.quantity}`,
-            reference: {
-              modelType: "BorrowedTool",
-              modelId: borrowedTool._id,
-            },
-            user: null,
-          },
-        ],
-        { session }
-      );
+      const notifType = "system";
+      await Notification.create({
+        type: notifType,
+        severity: notifSeverity,
+        title: isLost ? "Tool Reported Lost" : "Tool Reported Damaged",
+        message: `${toolInventory.name} (${toolInventory.toolCode}) was reported ${isLost ? "lost" : "damaged"} upon return by ${borrowedTool.borrowerName}. Quantity: ${borrowedTool.quantity}`,
+        reference: {
+          modelType: "BorrowedTool",
+          modelId: borrowedTool._id,
+        },
+        user: null,
+      });
     }
-
-    await session.commitTransaction();
-    session.endSession();
 
     await borrowedTool.populate("tool", "name toolCode");
     await borrowedTool.populate("issuedBy", "fullName");
@@ -256,8 +233,6 @@ export const returnTool = async (req, res) => {
       data: borrowedTool,
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((err) => ({
         field: err.path,
@@ -270,9 +245,9 @@ export const returnTool = async (req, res) => {
       });
     }
     console.error("returnTool error:", error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      message: "Server error while processing tool return",
+      message: error.message || "Server error while processing tool return",
     });
   }
 };
