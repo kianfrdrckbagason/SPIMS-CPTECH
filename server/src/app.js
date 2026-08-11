@@ -18,13 +18,14 @@ import dailyConsumptionRoutes from "./routes/dailyConsumptionRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import inventoryRecountRoutes from "./routes/inventoryRecountRoutes.js";
 
 const app = express();
 
 app.use(cors({
   origin: process.env.NODE_ENV === "production"
-    ? ["http://localhost:5173", process.env.CLIENT_URL].filter(Boolean)
-    : true,
+    ? [process.env.CLIENT_URL].filter(Boolean)
+    : "http://localhost:5173",
   credentials: true,
 }));
 app.use(helmet({ contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false }));
@@ -67,6 +68,7 @@ app.use("/api/daily-consumption", dailyConsumptionRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/inventory-recounts", inventoryRecountRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

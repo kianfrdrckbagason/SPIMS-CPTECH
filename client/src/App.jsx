@@ -14,6 +14,7 @@ import ToolsInventoryPage from './pages/ToolsInventoryPage';
 import DailyConsumptionPage from './pages/DailyConsumptionPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
+import InventoryRecountPage from './pages/InventoryRecountPage';
 import { useAuth } from './context/AuthContext';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
@@ -61,6 +62,7 @@ function App() {
         <Route path="/tools-inventory" element={<ToolsInventoryPage />} />
         <Route path="/daily-consumption" element={<DailyConsumptionPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/inventory-recount" element={<InventoryRecountPage />} />
         <Route
           path="/users"
           element={

@@ -2,29 +2,21 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
+  withCredentials: true, // send the httpOnly auth cookie on every request
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// No request interceptor needed — the browser sends the cookie automatically.
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      // Cookie-based auth: nothing to clear from localStorage.
+      // Redirect to login unless already there.
+      if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
     }

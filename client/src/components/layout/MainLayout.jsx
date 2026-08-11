@@ -31,8 +31,10 @@ import {
   FaChevronDown,
   FaChevronUp,
   FaCogs,
+  FaClipboardCheck,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
 
 const DRAWER_WIDTH = 260;
@@ -45,7 +47,22 @@ const MainLayout = () => {
   const navigate = useNavigate();
 
   const handleDrawerToggle = () => setDrawerOpen(!drawerOpen);
-  const handleLogout = async () => { await logout(); navigate('/login'); };
+
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      title: 'Confirm Logout',
+      text: 'Are you sure you want to logout?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#d32f2f',
+      cancelButtonColor: '#757575',
+      confirmButtonText: 'Logout',
+      cancelButtonText: 'Cancel',
+    });
+    if (!result.isConfirmed) return;
+    await logout();
+    navigate('/login');
+  };
   const handleAvatarClick = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
 
@@ -68,6 +85,7 @@ const MainLayout = () => {
 
   const others = [
     { label: 'Reports', path: '/reports', icon: <FaChartBar /> },
+    { label: 'Inventory Recount', path: '/inventory-recount', icon: <FaClipboardCheck /> },
   ];
 
   if (user?.role === 'admin') {

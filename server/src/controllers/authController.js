@@ -11,6 +11,7 @@ const sendTokenResponse = (user, statusCode, res) => {
     ),
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
   };
 
   const userResponse = {
@@ -22,12 +23,12 @@ const sendTokenResponse = (user, statusCode, res) => {
     createdAt: user.createdAt,
   };
 
+  // Token is set in the httpOnly cookie only — not returned in the response body.
   res
     .status(statusCode)
     .cookie("token", token, cookieOptions)
     .json({
       success: true,
-      token,
       user: userResponse,
     });
 };
@@ -90,9 +91,11 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-    res.cookie("token", "none", {
-      expires: new Date(Date.now() + 10 * 1000),
+    res.cookie("token", "", {
+      expires: new Date(0),
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
     });
 
     res.status(200).json({

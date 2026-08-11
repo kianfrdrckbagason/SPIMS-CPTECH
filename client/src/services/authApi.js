@@ -8,7 +8,7 @@ export const register = async (userData) => {
     err.errors = result.errors || [];
     throw err;
   }
-  return { token: result.token, user: result.user };
+  return { user: result.user };
 };
 
 export const login = async (credentials) => {
@@ -19,7 +19,7 @@ export const login = async (credentials) => {
     err.errors = result.errors || [];
     throw err;
   }
-  return { token: result.token, user: result.user };
+  return { user: result.user };
 };
 
 export const logout = async () => {

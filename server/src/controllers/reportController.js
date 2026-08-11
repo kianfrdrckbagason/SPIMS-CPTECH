@@ -381,15 +381,15 @@ export const generateMonthlyInventoryReport = async (req, res) => {
     }
 
     const [year, monthNum] = month.split("-").map(Number);
-    const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
-    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    const monthStart = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
-    // Sum of stock in / adjustment-increase quantities per spare part in the selected month
+    // ── Stock movements within the selected month ────────────────────────────
     const stockInAgg = await Transaction.aggregate([
       {
         $match: {
           itemType: "sparePart",
-          date: { $gte: start, $lte: end },
+          date: { $gte: monthStart, $lte: monthEnd },
           $or: [
             { type: "stockIn" },
             { type: "adjustment", adjustmentType: "increase" },
@@ -399,12 +399,11 @@ export const generateMonthlyInventoryReport = async (req, res) => {
       { $group: { _id: "$sparePart", total: { $sum: "$quantity" } } },
     ]);
 
-    // Sum of stock out / adjustment-decrease quantities per spare part in the selected month
     const stockOutAgg = await Transaction.aggregate([
       {
         $match: {
           itemType: "sparePart",
-          date: { $gte: start, $lte: end },
+          date: { $gte: monthStart, $lte: monthEnd },
           $or: [
             { type: "stockOut" },
             { type: "adjustment", adjustmentType: "decrease" },
@@ -414,13 +413,72 @@ export const generateMonthlyInventoryReport = async (req, res) => {
       { $group: { _id: "$sparePart", total: { $sum: "$quantity" } } },
     ]);
 
+    // ── Net movements AFTER the selected month (to back-calculate from current qty) ──
+    // This gives us the correct ending balance for the selected month regardless
+    // of when the report is generated.
+    const netAfterAgg = await Transaction.aggregate([
+      {
+        $match: {
+          itemType: "sparePart",
+          date: { $gt: monthEnd },
+        },
+      },
+      {
+        $group: {
+          _id: "$sparePart",
+          netIn: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ["$type", "stockIn"] },
+                    {
+                      $and: [
+                        { $eq: ["$type", "adjustment"] },
+                        { $eq: ["$adjustmentType", "increase"] },
+                      ],
+                    },
+                  ],
+                },
+                "$quantity",
+                0,
+              ],
+            },
+          },
+          netOut: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ["$type", "stockOut"] },
+                    {
+                      $and: [
+                        { $eq: ["$type", "adjustment"] },
+                        { $eq: ["$adjustmentType", "decrease"] },
+                      ],
+                    },
+                  ],
+                },
+                "$quantity",
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
     const stockInMap = {};
-    stockInAgg.forEach((r) => {
-      if (r._id) stockInMap[r._id.toString()] = r.total;
-    });
-const stockOutMap = {};
-    stockOutAgg.forEach((r) => {
-      if (r._id) stockOutMap[r._id.toString()] = r.total;
+    stockInAgg.forEach((r) => { if (r._id) stockInMap[r._id.toString()] = r.total; });
+
+    const stockOutMap = {};
+    stockOutAgg.forEach((r) => { if (r._id) stockOutMap[r._id.toString()] = r.total; });
+
+    // netAfter = movements that happened strictly after the selected month
+    // ending(selected month) = currentQty - netIn_after + netOut_after
+    const netAfterMap = {};
+    netAfterAgg.forEach((r) => {
+      if (r._id) netAfterMap[r._id.toString()] = r.netIn - r.netOut;
     });
 
     const partQuery = { status: { $ne: "archived" } };
@@ -434,24 +492,27 @@ const stockOutMap = {};
 
     parts.forEach((part) => {
       const categoryName = part.category?.name || "Uncategorized";
-      const stockIn = stockInMap[part._id.toString()] || 0;
-      const stockOut = stockOutMap[part._id.toString()] || 0;
-      const ending = Number(part.quantity || 0);
-      const beginning = ending - stockIn + stockOut;
+      const id = part._id.toString();
+
+      const monthStockIn = stockInMap[id] || 0;
+      const monthStockOut = stockOutMap[id] || 0;
+      const netAfter = netAfterMap[id] || 0;
+
+      // ending = what the quantity was at the end of the selected month
+      const ending = Math.max(0, Number(part.quantity || 0) - netAfter);
+      // beginning = ending before this month's movements were applied
+      const beginning = Math.max(0, ending - monthStockIn + monthStockOut);
 
       if (!categoryMap.has(categoryName)) {
-        categoryMap.set(categoryName, {
-          category: categoryName,
-          items: [],
-        });
+        categoryMap.set(categoryName, { category: categoryName, items: [] });
       }
 
       categoryMap.get(categoryName).items.push({
         part: part.name,
         unit: "pcs",
         beginning,
-        stockIn,
-        stockOut,
+        stockIn: monthStockIn,
+        stockOut: monthStockOut,
         ending,
       });
     });
@@ -473,6 +534,91 @@ const stockOutMap = {};
   } catch (error) {
     console.error("generateMonthlyInventoryReport error:", error);
     res.status(500).json({ success: false, message: "Server error generating monthly inventory report" });
+  }
+};
+
+export const getMonthlyTransactionsReport = async (req, res) => {
+  try {
+    const { month } = req.query;
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid month in YYYY-MM format is required",
+      });
+    }
+
+    const [year, monthNum] = month.split("-").map(Number);
+    const monthStart = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+    const transactions = await Transaction.find({
+      date: { $gte: monthStart, $lte: monthEnd },
+    })
+      .sort({ date: 1 })
+      .populate({ path: "sparePart", select: "name sku category", populate: { path: "category", select: "name" } })
+      .populate("consumable", "name unit")
+      .populate("tool", "name toolCode")
+      .lean();
+
+    const TYPE_LABEL = {
+      stockIn: "STOCK IN",
+      stockOut: "STOCK OUT",
+      adjustment: "ADJUSTMENT",
+      borrowTool: "BORROW",
+      returnTool: "RETURN",
+      consumableRelease: "RELEASE",
+      consumableStockIn: "STOCK IN",
+      consumableAdjustment: "ADJUSTMENT",
+    };
+
+    const rows = transactions.map((tx) => {
+      let itemName = "";
+      let category = "";
+      let itemType = tx.itemType;
+
+      if (tx.itemType === "sparePart" && tx.sparePart) {
+        itemName = tx.sparePart.name || "";
+        category = tx.sparePart.category?.name || "Uncategorized";
+      } else if (tx.itemType === "consumable" && tx.consumable) {
+        itemName = tx.consumable.name || "";
+        category = "Consumables";
+      } else if (tx.itemType === "tool" && tx.tool) {
+        itemName = tx.tool.name || "";
+        category = "Tools";
+      }
+
+      return {
+        date: tx.date,
+        category,
+        itemType,
+        item: itemName,
+        type: TYPE_LABEL[tx.type] || tx.type,
+        quantity: tx.quantity,
+        balanceAfter: tx.balanceAfter ?? null,
+        employeeName: tx.employeeName || tx.receivedBy || tx.releasedBy || "",
+        department: tx.department || "",
+        machine: tx.machine || "",
+        remarks: tx.remarks || "",
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        month,
+        monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        }),
+        rows,
+        total: rows.length,
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("getMonthlyTransactionsReport error:", error);
+    res.status(500).json({ success: false, message: "Server error generating monthly transactions report" });
   }
 };
 

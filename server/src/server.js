@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import bcrypt from "bcrypt";
 import connectDB from "./config/db.js";
 import app from "./app.js";
 import User from "./models/User.js";
@@ -7,15 +6,41 @@ import Category from "./models/Category.js";
 
 dotenv.config();
 
+// ---------------------------------------------------------------------------
+// Startup environment validation
+// The application must not start if any required secret is absent.
+// Variable names are logged on failure — values are never logged.
+// ---------------------------------------------------------------------------
+const validateEnv = () => {
+  const required = ["JWT_SECRET", "DEFAULT_ADMIN_EMAIL", "DEFAULT_ADMIN_PASSWORD"];
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    console.error(
+      `[startup] Missing required environment variable(s): ${missing.join(", ")}. ` +
+      "Set them in server/.env and restart."
+    );
+    process.exit(1);
+  }
+};
+
+validateEnv();
+
 await connectDB();
 
+// ---------------------------------------------------------------------------
+// Seed: default admin account
+// Creates the admin user on first run only.
+// If the account already exists the password is never touched, preserving
+// any password changes made through the application.
+// ---------------------------------------------------------------------------
 const seedDefaultAdmin = async () => {
   try {
-    const email = (process.env.DEFAULT_ADMIN_EMAIL || "admin@cptech.com").toLowerCase();
-    const password = process.env.DEFAULT_ADMIN_PASSWORD || "Admin@1234";
+    const email = process.env.DEFAULT_ADMIN_EMAIL.toLowerCase();
 
     const existingAdmin = await User.findOne({ email });
     if (existingAdmin) {
+      // Only repair role/status — never reset the password.
       let updated = false;
 
       if (existingAdmin.role !== "admin") {
@@ -28,30 +53,21 @@ const seedDefaultAdmin = async () => {
         updated = true;
       }
 
-      const passwordMatches = existingAdmin.password
-        ? await bcrypt.compare(password, existingAdmin.password)
-        : false;
-
-      if (!passwordMatches) {
-        existingAdmin.password = password;
-        updated = true;
-      }
-
       if (updated) {
         await existingAdmin.save();
       }
 
-      console.log(`ℹ️ Default admin account ready: ${email}`);
+      console.log("ℹ️  Default admin account is ready.");
     } else {
       await User.create({
         fullName: "CPTECH Administrator",
         email,
-        password,
+        password: process.env.DEFAULT_ADMIN_PASSWORD,
         role: "admin",
         status: "active",
       });
 
-      console.log(`✅ Default admin account created: ${email}`);
+      console.log("✅ Default admin account created.");
     }
   } catch (error) {
     console.error("Default admin seed error:", error);

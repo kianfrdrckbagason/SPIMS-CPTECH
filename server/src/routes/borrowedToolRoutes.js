@@ -9,6 +9,7 @@ import {
   deleteBorrowedTool,
 } from "../controllers/borrowedToolController.js";
 import { protect } from "../middleware/auth.js";
+import { authorize } from "../middleware/authorize.js";
 import mongoose from "mongoose";
 
 const router = express.Router();
@@ -90,7 +91,7 @@ router.put(
   returnTool
 );
 
-router.post("/mark-overdue", markOverdue);
+router.post("/mark-overdue", authorize("admin"), markOverdue);
 
 router.get("/", getBorrowedTools);
 

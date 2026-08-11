@@ -34,10 +34,17 @@ export const getMonthlyInventoryReport = async (month, category = '') => {
   return response.data;
 };
 
+export const getMonthlyTransactionsReport = async (month) => {
+  const response = await api.get(`${BASE_PATH}/monthly-transactions`, {
+    params: { month },
+  });
+  return response.data;
+};
+
 export const downloadFile = (url, filename) => {
-  const token = localStorage.getItem('token');
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  return fetch(url.startsWith('http') ? url : url, { headers })
+  // credentials:'include' sends the httpOnly auth cookie automatically.
+  // No Authorization header needed.
+  return fetch(url, { credentials: 'include' })
     .then((res) => res.blob())
     .then((blob) => {
       const link = document.createElement('a');

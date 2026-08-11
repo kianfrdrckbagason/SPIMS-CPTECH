@@ -34,18 +34,23 @@ import {
 import {
   FaPlus,
   FaEdit,
-  FaTrash,
   FaSearch,
   FaFilter,
   FaBoxes,
+  FaArrowDown,
+  FaArrowUp,
+  FaEllipsisV,
+  FaArchive,
+  FaUndo,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import * as consumableApi from '../services/consumableApi';
+import { consumableStockIn, consumableRelease } from '../services/stockApi';
 
-const getStockStatusInfo = (qty) => {
+const getStockStatusInfo = (qty, minStock = 0) => {
   if (qty <= 0) return { color: 'error', label: 'OUT' };
+  if (minStock > 0 && qty <= minStock) return { color: 'warning', label: 'LOW' };
   return { color: 'success', label: 'OK' };
 };
 
@@ -62,6 +67,7 @@ const ConsumablesPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
+  // ── list state ──────────────────────────────────────────────────────────────
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -74,11 +80,28 @@ const ConsumablesPage = () => {
   const [unitFilter, setUnitFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  // ── create/edit dialog ───────────────────────────────────────────────────────
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
   const [formErrors, setFormErrors] = useState({});
 
+  // ── action chooser dialog ────────────────────────────────────────────────────
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  // ── stock in/out dialog ──────────────────────────────────────────────────────
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockAction, setStockAction] = useState('in'); // 'in' | 'out'
+  const [stockDate, setStockDate] = useState(new Date().toISOString().slice(0, 10));
+  const [stockDepartment, setStockDepartment] = useState('');
+  const [stockReceivedBy, setStockReceivedBy] = useState('');
+  const [stockQty, setStockQty] = useState(1);
+  const [stockRemarks, setStockRemarks] = useState('');
+  const [stockReference, setStockReference] = useState('');
+  const [stockSubmitting, setStockSubmitting] = useState(false);
+
+  // ── search debounce ──────────────────────────────────────────────────────────
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchDebounced(search);
@@ -87,44 +110,49 @@ const ConsumablesPage = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
-    const fetchItems = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          page: page + 1,
-          limit: rowsPerPage,
-        };
-        if (searchDebounced) params.search = searchDebounced;
-        if (unitFilter) params.unit = unitFilter;
-        if (statusFilter) params.status = statusFilter;
+  // ── fetch list ───────────────────────────────────────────────────────────────
+  const buildParams = () => {
+    const params = { page: page + 1, limit: rowsPerPage };
+    if (searchDebounced) params.search = searchDebounced;
+    if (unitFilter) params.unit = unitFilter;
+    if (statusFilter) params.status = statusFilter;
+    return params;
+  };
 
-        const res = await consumableApi.getAllConsumables(params);
-        if (res?.success) {
-          setItems(res.data || []);
-          setTotal(res.total || 0);
-        } else {
-          setItems([]);
-          setTotal(0);
-          toast.error(res?.message || 'Failed to load consumables');
-        }
-      } catch (err) {
-        toast.error(err?.response?.data?.message || 'Failed to load consumables');
+  const fetchItems = async () => {
+    setLoading(true);
+    try {
+      const res = await consumableApi.getAllConsumables(buildParams());
+      if (res?.success) {
+        setItems(res.data || []);
+        setTotal(res.total || 0);
+      } else {
         setItems([]);
         setTotal(0);
-      } finally {
-        setLoading(false);
+        toast.error(res?.message || 'Failed to load consumables');
       }
-    };
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to load consumables');
+      setItems([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, searchDebounced, unitFilter, statusFilter]);
 
+  // ── pagination ───────────────────────────────────────────────────────────────
   const handleChangePage = (_e, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (e) => {
     setRowsPerPage(parseInt(e.target.value, 10));
     setPage(0);
   };
 
+  // ── create/edit ──────────────────────────────────────────────────────────────
   const openCreateDialog = () => {
     setEditingId(null);
     setFormData({ ...EMPTY_FORM });
@@ -164,9 +192,14 @@ const ConsumablesPage = () => {
     const errors = {};
     if (!formData.name?.trim()) errors.name = 'Name is required';
     if (!formData.unit?.trim()) errors.unit = 'Unit is required (e.g. box, pair, piece)';
-    if (formData.quantity === '' || formData.quantity === null || isNaN(Number(formData.quantity)))
+    if (
+      formData.quantity === '' ||
+      formData.quantity === null ||
+      isNaN(Number(formData.quantity))
+    )
       errors.quantity = 'Valid quantity is required';
-    else if (Number(formData.quantity) < 0) errors.quantity = 'Quantity cannot be negative';
+    else if (Number(formData.quantity) < 0)
+      errors.quantity = 'Quantity cannot be negative';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -175,50 +208,30 @@ const ConsumablesPage = () => {
     if (!validateForm()) return;
     setSubmitting(true);
     try {
-      const payload = {
-        ...formData,
-        quantity: Number(formData.quantity),
-      };
-      let res;
-      if (editingId) {
-        res = await consumableApi.updateConsumable(editingId, payload);
-      } else {
-        res = await consumableApi.createConsumable(payload);
-      }
+      const payload = { ...formData, quantity: Number(formData.quantity) };
+      const res = editingId
+        ? await consumableApi.updateConsumable(editingId, payload)
+        : await consumableApi.createConsumable(payload);
+
       if (res?.success) {
         toast.success(res.message || (editingId ? 'Updated successfully' : 'Created successfully'));
         setDialogOpen(false);
         setEditingId(null);
         setPage(0);
-        const params = {
-          page: page + 1,
-          limit: rowsPerPage,
-        };
-        if (searchDebounced) params.search = searchDebounced;
-        if (unitFilter) params.unit = unitFilter;
-        if (statusFilter) params.status = statusFilter;
-        const refetch = await consumableApi.getAllConsumables(params);
-        if (refetch?.success) {
-          setItems(refetch.data || []);
-          setTotal(refetch.total || 0);
-        }
+        await fetchItems();
       } else {
         if (res?.errors && Array.isArray(res.errors)) {
           const fieldErrors = {};
-          res.errors.forEach((e) => {
-            if (e.field) fieldErrors[e.field] = e.message;
-          });
+          res.errors.forEach((e) => { if (e.field) fieldErrors[e.field] = e.message; });
           if (Object.keys(fieldErrors).length) setFormErrors(fieldErrors);
         }
         toast.error(res?.message || 'Operation failed');
       }
     } catch (err) {
       const msg = err?.response?.data?.message;
-      if (err?.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+      if (err?.response?.data?.errors) {
         const fieldErrors = {};
-        err.response.data.errors.forEach((e) => {
-          if (e.field) fieldErrors[e.field] = e.message;
-        });
+        err.response.data.errors.forEach((e) => { if (e.field) fieldErrors[e.field] = e.message; });
         if (Object.keys(fieldErrors).length) setFormErrors(fieldErrors);
       }
       toast.error(msg || 'Operation failed');
@@ -227,48 +240,129 @@ const ConsumablesPage = () => {
     }
   };
 
-  const handleDelete = async (row) => {
-    const result = await Swal.fire({
-      title: 'Delete Consumable?',
-      text: `Are you sure you want to delete "${row.name}"? This cannot be undone.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d32f2f',
-      cancelButtonColor: '#757575',
-      confirmButtonText: 'Yes, delete it',
-      cancelButtonText: 'Cancel',
-    });
-    if (!result.isConfirmed) return;
+  // ── action chooser ───────────────────────────────────────────────────────────
+  const openActionDialog = (row) => {
+    setSelectedItem(row);
+    setActionDialogOpen(true);
+  };
+
+  const closeActionDialog = () => {
+    setActionDialogOpen(false);
+    setSelectedItem(null);
+  };
+
+  // ── stock in/out ─────────────────────────────────────────────────────────────
+  const openStockDialog = (row, action) => {
+    setSelectedItem(row);
+    setStockAction(action);
+    setStockDate(new Date().toISOString().slice(0, 10));
+    setStockDepartment('');
+    setStockReceivedBy(user?.fullName || '');
+    setStockQty(1);
+    setStockRemarks('');
+    setStockReference('');
+    setStockDialogOpen(true);
+  };
+
+  const closeStockDialog = () => {
+    setStockDialogOpen(false);
+    setSelectedItem(null);
+  };
+
+  // ── deactivate / reactivate ──────────────────────────────────────────────────
+  const handleToggleStatus = async (row) => {
+    const isActive = row.status === 'active';
+    const newStatus = isActive ? 'inactive' : 'active';
+    const label = isActive ? 'deactivate' : 'reactivate';
     try {
-      const res = await consumableApi.deleteConsumable(row._id);
+      const res = await consumableApi.updateConsumable(row._id, { status: newStatus });
       if (res?.success) {
-        toast.success(res.message || 'Deleted successfully');
-        const params = {
-          page: page + 1,
-          limit: rowsPerPage,
-        };
-        if (searchDebounced) params.search = searchDebounced;
-        if (unitFilter) params.unit = unitFilter;
-        if (statusFilter) params.status = statusFilter;
-        const refetch = await consumableApi.getAllConsumables(params);
-        if (refetch?.success) {
-          setItems(refetch.data || []);
-          setTotal(refetch.total || 0);
-          if (refetch.data.length === 0 && page > 0) setPage(page - 1);
-        }
+        toast.success(`Consumable ${label}d successfully`);
+        await fetchItems();
       } else {
-        toast.error(res?.message || 'Delete failed');
+        toast.error(res?.message || `Failed to ${label} consumable`);
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Delete failed');
+      toast.error(err?.response?.data?.message || `Failed to ${label} consumable`);
     }
   };
 
+  const submitStock = async () => {
+    if (!selectedItem) return;
+
+    const qty = Number(stockQty);
+    if (!qty || qty <= 0) {
+      toast.error('Enter a valid quantity');
+      return;
+    }
+    if (!stockDate) {
+      toast.error('Date is required');
+      return;
+    }
+    if (!stockReceivedBy.trim()) {
+      toast.error(stockAction === 'in' ? 'Received By is required' : 'Released By is required');
+      return;
+    }
+    if (stockAction === 'out') {
+      if (!stockDepartment.trim()) {
+        toast.error('Department is required');
+        return;
+      }
+      if (qty > (selectedItem.quantity || 0)) {
+        toast.error(`Quantity exceeds available stock (${selectedItem.quantity || 0})`);
+        return;
+      }
+    }
+
+    setStockSubmitting(true);
+    try {
+      const payload = {
+        consumable: selectedItem._id,
+        quantity: qty,
+        date: stockDate,
+        remarks: stockRemarks || undefined,
+        reference: stockReference || undefined,
+      };
+
+      let res;
+      if (stockAction === 'in') {
+        payload.receivedBy = stockReceivedBy;
+        res = await consumableStockIn(payload);
+      } else {
+        payload.releasedBy = stockReceivedBy;
+        payload.department = stockDepartment;
+        payload.employeeName = stockReceivedBy;
+        res = await consumableRelease(payload);
+      }
+
+      if (res?.success) {
+        const newBalance =
+          res.data?.consumable?.quantity ??
+          res.data?.transaction?.balanceAfter ??
+          (stockAction === 'in'
+            ? (selectedItem.quantity || 0) + qty
+            : (selectedItem.quantity || 0) - qty);
+        toast.success(
+          `${stockAction === 'in' ? 'Stock In' : 'Stock Out'} recorded. New balance: ${newBalance}`
+        );
+        closeStockDialog();
+        await fetchItems();
+      } else {
+        toast.error(res?.message || 'Operation failed');
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Operation failed');
+    } finally {
+      setStockSubmitting(false);
+    }
+  };
+
+  // ── skeleton rows ─────────────────────────────────────────────────────────────
   const renderSkeletonRows = useMemo(
     () =>
       Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
-          {Array.from({ length: 5 }).map((__, j) => (
+          {Array.from({ length: 6 }).map((__, j) => (
             <TableCell key={j}>
               <Skeleton variant="text" />
             </TableCell>
@@ -278,6 +372,18 @@ const ConsumablesPage = () => {
     []
   );
 
+  // ── stock-out quantity validation ─────────────────────────────────────────────
+  const stockQtyError =
+    stockAction === 'out' &&
+    selectedItem &&
+    stockQty &&
+    Number(stockQty) > (selectedItem.quantity || 0)
+      ? `Exceeds available stock (${selectedItem.quantity || 0})`
+      : Number(stockQty) <= 0 && stockQty !== ''
+      ? 'Must be at least 1'
+      : '';
+
+  // ── render ────────────────────────────────────────────────────────────────────
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
@@ -289,6 +395,7 @@ const ConsumablesPage = () => {
         </Typography>
       </Box>
 
+      {/* ── Filters bar ── */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
@@ -315,10 +422,7 @@ const ConsumablesPage = () => {
                 label="Unit"
                 placeholder="Filter by unit..."
                 value={unitFilter}
-                onChange={(e) => {
-                  setUnitFilter(e.target.value);
-                  setPage(0);
-                }}
+                onChange={(e) => { setUnitFilter(e.target.value); setPage(0); }}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -335,10 +439,7 @@ const ConsumablesPage = () => {
                   labelId="con-status-label"
                   label="Status"
                   value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
-                    setPage(0);
-                  }}
+                  onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
                 >
                   <MenuItem value="">All Statuses</MenuItem>
                   {CONSUMABLE_STATUSES.map((s) => (
@@ -379,6 +480,7 @@ const ConsumablesPage = () => {
         </CardContent>
       </Card>
 
+      {/* ── Table ── */}
       <Card>
         <TableContainer component={Paper} variant="outlined" sx={{ border: 'none' }}>
           <Table size="small" stickyHeader>
@@ -388,7 +490,7 @@ const ConsumablesPage = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700 }}>Status</TableCell>
-                {isAdmin && <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>}
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -396,7 +498,7 @@ const ConsumablesPage = () => {
                 renderSkeletonRows
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 5 : 4} sx={{ py: 6 }}>
+                  <TableCell colSpan={5} sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
                       <FaBoxes style={{ fontSize: 40, opacity: 0.3, marginBottom: 8 }} />
                       <Typography variant="body1">No consumables found</Typography>
@@ -409,7 +511,8 @@ const ConsumablesPage = () => {
               ) : (
                 items.map((row) => {
                   const qty = Number(row.quantity) || 0;
-                  const status = getStockStatusInfo(qty);
+                  const minStock = Number(row.minStockLevel) || 0;
+                  const status = getStockStatusInfo(qty, minStock);
                   return (
                     <TableRow
                       key={row._id}
@@ -430,28 +533,17 @@ const ConsumablesPage = () => {
                       <TableCell align="center">
                         <Chip label={status.label} color={status.color} size="small" />
                       </TableCell>
-                      {isAdmin && (
-                        <TableCell align="center">
-                          <Tooltip title="Edit">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => openEditDialog(row)}
-                            >
-                              <FaEdit />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDelete(row)}
-                            >
-                              <FaTrash />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      )}
+                      <TableCell align="center">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          startIcon={<FaEllipsisV />}
+                          onClick={() => openActionDialog(row)}
+                        >
+                          Action
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -470,6 +562,177 @@ const ConsumablesPage = () => {
         />
       </Card>
 
+      {/* ── Action chooser dialog ── */}
+      <Dialog open={actionDialogOpen} onClose={closeActionDialog} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FaBoxes />
+            <Typography variant="h6" fontWeight={700}>
+              Choose Action
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<FaArrowDown />}
+              onClick={() => { closeActionDialog(); openStockDialog(selectedItem, 'in'); }}
+            >
+              Stock In
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              startIcon={<FaArrowUp />}
+              onClick={() => { closeActionDialog(); openStockDialog(selectedItem, 'out'); }}
+            >
+              Stock Out
+            </Button>
+            {isAdmin && (
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<FaEdit />}
+                onClick={() => { closeActionDialog(); openEditDialog(selectedItem); }}
+              >
+                Edit
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="outlined"
+                color={selectedItem?.status === 'active' ? 'error' : 'success'}
+                startIcon={selectedItem?.status === 'active' ? <FaArchive /> : <FaUndo />}
+                onClick={() => {
+                  const row = selectedItem;
+                  closeActionDialog();
+                  handleToggleStatus(row);
+                }}
+              >
+                {selectedItem?.status === 'active' ? 'Deactivate' : 'Reactivate'}
+              </Button>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={closeActionDialog}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Stock In / Stock Out dialog ── */}
+      <Dialog
+        open={stockDialogOpen}
+        onClose={stockSubmitting ? undefined : closeStockDialog}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {stockAction === 'in' ? <FaArrowDown /> : <FaArrowUp />}
+            <Typography variant="h6" fontWeight={700}>
+              {stockAction === 'in' ? 'Stock In' : 'Stock Out'} — {selectedItem?.name}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Unit: {selectedItem?.unit || '—'} &nbsp;|&nbsp; Current Qty:{' '}
+              {selectedItem?.quantity ?? 0}
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Date"
+              type="date"
+              value={stockDate}
+              onChange={(e) => setStockDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+
+            {stockAction === 'out' && (
+              <TextField
+                fullWidth
+                label="Department"
+                value={stockDepartment}
+                onChange={(e) => setStockDepartment(e.target.value)}
+                required
+              />
+            )}
+
+            <TextField
+              fullWidth
+              label={stockAction === 'in' ? 'Received By' : 'Released By'}
+              value={stockReceivedBy}
+              onChange={(e) => setStockReceivedBy(e.target.value)}
+              required
+            />
+
+            <TextField
+              fullWidth
+              label="Quantity"
+              type="number"
+              value={stockQty}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || Number(val) >= 0) setStockQty(val);
+              }}
+              onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+              InputProps={{ inputProps: { min: 1, step: 1 } }}
+              required
+              error={!!stockQtyError}
+              helperText={
+                stockQtyError ||
+                (stockAction === 'out' && selectedItem
+                  ? `Max: ${selectedItem.quantity ?? 0}`
+                  : '')
+              }
+            />
+
+            <TextField
+              fullWidth
+              label="Reference / PO No."
+              value={stockReference}
+              onChange={(e) => setStockReference(e.target.value)}
+            />
+
+            <TextField
+              fullWidth
+              label="Remarks"
+              value={stockRemarks}
+              onChange={(e) => setStockRemarks(e.target.value)}
+              multiline
+              rows={2}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={closeStockDialog} disabled={stockSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={stockAction === 'in' ? 'success' : 'warning'}
+            onClick={submitStock}
+            disabled={
+              stockSubmitting ||
+              (stockAction === 'out' && !!stockQtyError)
+            }
+            startIcon={stockSubmitting ? <CircularProgress size={18} color="inherit" /> : null}
+          >
+            {stockSubmitting
+              ? 'Saving...'
+              : stockAction === 'in'
+              ? 'Record Stock In'
+              : 'Record Stock Out'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Create / Edit dialog ── */}
       <Dialog
         open={dialogOpen}
         onClose={submitting ? undefined : closeDialog}
@@ -535,13 +798,9 @@ const ConsumablesPage = () => {
                 value={formData.quantity}
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (val === '' || Number(val) >= 0) {
-                    setField('quantity', val);
-                  }
+                  if (val === '' || Number(val) >= 0) setField('quantity', val);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === '-') e.preventDefault();
-                }}
+                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                 error={!!formErrors.quantity}
                 helperText={formErrors.quantity}
                 InputProps={{ inputProps: { min: 0, step: 1 } }}

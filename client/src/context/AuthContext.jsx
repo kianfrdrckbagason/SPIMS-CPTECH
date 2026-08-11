@@ -4,29 +4,22 @@ import { login as loginApi, register as registerApi, logout as logoutApi, getMe 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  // User profile only — the JWT lives in the httpOnly cookie, not in state or localStorage.
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Always attempt to restore the session via the cookie.
+    // If no valid cookie exists the server returns 401 and user stays null.
     const checkAuth = async () => {
-      const savedToken = localStorage.getItem('token');
-      if (savedToken) {
-        try {
-          const userData = await getMe();
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-        } catch (error) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setToken(null);
-          setUser(null);
-        }
+      try {
+        const userData = await getMe();
+        setUser(userData);
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     checkAuth();
@@ -34,36 +27,30 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const data = await loginApi(credentials);
-    setToken(data.token);
+    // Server sets the httpOnly cookie; we only store the public user profile in state.
     setUser(data.user);
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
     return data;
   };
 
+  // Kept because RegisterPage imports and calls this.
+  // The server endpoint returns 403 — this is intentionally a no-op at the API level.
   const register = async (userData) => {
     const data = await registerApi(userData);
-    setToken(data.token);
     setUser(data.user);
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
     return data;
   };
 
   const logout = async () => {
     try {
       await logoutApi();
-    } catch (error) {
-      // Ignore error on logout
+    } catch {
+      // Ignore network errors on logout — proceed to clear local state regardless.
     }
-    setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

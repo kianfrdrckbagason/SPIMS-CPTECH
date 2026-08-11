@@ -1,9 +1,10 @@
 # Dependencies
 node_modules/
 
-# Environment variables
+# Environment variables — ignore real env files, allow the example template
 .env
 .env.*
+!.env.example
 
 # Production build
 dist/
