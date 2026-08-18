@@ -49,7 +49,6 @@ const StockInPage = () => {
     sparePartId: '',
     quantity: '',
     receivedBy: user?.fullName || '',
-    reference: '',
     unitPrice: '',
     remarks: '',
   });
@@ -162,7 +161,6 @@ const StockInPage = () => {
         sparePartId: spareForm.sparePartId,
         quantity: qty,
         receivedBy: spareForm.receivedBy,
-        reference: spareForm.reference || undefined,
         unitPrice: spareForm.unitPrice ? parseFloat(spareForm.unitPrice) : undefined,
         remarks: spareForm.remarks || undefined,
       };
@@ -212,7 +210,6 @@ const StockInPage = () => {
         consumableId: consumableForm.consumableId,
         quantity: qty,
         receivedBy: consumableForm.receivedBy,
-        reference: consumableForm.reference || undefined,
         unitPrice: consumableForm.unitPrice ? parseFloat(consumableForm.unitPrice) : undefined,
         remarks: consumableForm.remarks || undefined,
       };
@@ -373,13 +370,6 @@ const StockInPage = () => {
                     disabled={submitting}
                   />
                   <TextField
-                    label="Reference / PO No."
-                    value={spareForm.reference}
-                    onChange={(e) => setSpareForm({ ...spareForm, reference: e.target.value })}
-                    fullWidth
-                    disabled={submitting}
-                  />
-                  <TextField
                     label="Unit Price"
                     type="number"
                     value={spareForm.unitPrice}
@@ -475,13 +465,6 @@ const StockInPage = () => {
                     onChange={(e) => setConsumableForm({ ...consumableForm, receivedBy: e.target.value })}
                     fullWidth
                     required
-                    disabled={submitting}
-                  />
-                  <TextField
-                    label="Reference / PO No."
-                    value={consumableForm.reference}
-                    onChange={(e) => setConsumableForm({ ...consumableForm, reference: e.target.value })}
-                    fullWidth
                     disabled={submitting}
                   />
                   <TextField

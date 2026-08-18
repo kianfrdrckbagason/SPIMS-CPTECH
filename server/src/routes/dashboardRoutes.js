@@ -5,6 +5,10 @@ import {
   getMonthlyTransactions,
   getCategoryDistribution,
   getFrequentParts,
+  getLowStockItems,
+  getOutOfStockItems,
+  getStockInHistory,
+  getStockOutHistory,
 } from "../controllers/dashboardController.js";
 import { protect } from "../middleware/auth.js";
 import { authorize } from "../middleware/authorize.js";
@@ -22,6 +26,14 @@ router.get("/charts/monthly-transactions", getMonthlyTransactions);
 router.get("/charts/category-distribution", getCategoryDistribution);
 
 router.get("/charts/frequent-parts", getFrequentParts);
+
+router.get("/low-stock-items", getLowStockItems);
+
+router.get("/out-of-stock-items", getOutOfStockItems);
+
+router.get("/stock-in-history", getStockInHistory);
+
+router.get("/stock-out-history", getStockOutHistory);
 
 router.get("/admin-summary", authorize("admin"), async (req, res) => {
   try {

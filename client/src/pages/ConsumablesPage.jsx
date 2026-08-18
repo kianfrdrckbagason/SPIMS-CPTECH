@@ -61,6 +61,7 @@ const EMPTY_FORM = {
   unit: '',
   quantity: 0,
   status: 'active',
+  movementClassification: 'medium',
 };
 
 const ConsumablesPage = () => {
@@ -100,6 +101,8 @@ const ConsumablesPage = () => {
   const [stockRemarks, setStockRemarks] = useState('');
   const [stockReference, setStockReference] = useState('');
   const [stockSubmitting, setStockSubmitting] = useState(false);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [itemToDeactivate, setItemToDeactivate] = useState(null);
 
   // ── search debounce ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -167,6 +170,7 @@ const ConsumablesPage = () => {
       unit: row.unit || '',
       quantity: row.quantity ?? 0,
       status: row.status || 'active',
+      movementClassification: row.movementClassification || 'medium',
     });
     setFormErrors({});
     setDialogOpen(true);
@@ -321,7 +325,6 @@ const ConsumablesPage = () => {
         quantity: qty,
         date: stockDate,
         remarks: stockRemarks || undefined,
-        reference: stockReference || undefined,
       };
 
       let res;
@@ -603,21 +606,68 @@ const ConsumablesPage = () => {
             {isAdmin && (
               <Button
                 variant="outlined"
-                color={selectedItem?.status === 'active' ? 'error' : 'success'}
-                startIcon={selectedItem?.status === 'active' ? <FaArchive /> : <FaUndo />}
+                color="secondary"
+                startIcon={<FaArchive />}
                 onClick={() => {
                   const row = selectedItem;
                   closeActionDialog();
-                  handleToggleStatus(row);
+                  setItemToDeactivate(row);
+                  setDeactivateDialogOpen(true);
                 }}
               >
-                {selectedItem?.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                Deactivate
               </Button>
             )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={closeActionDialog}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Deactivate dialog ── */}
+      <Dialog open={deactivateDialogOpen} onClose={() => { setDeactivateDialogOpen(false); setItemToDeactivate(null); }} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FaArchive />
+            <Typography variant="h6" fontWeight={700}>
+              Deactivate Consumable
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            Are you sure you want to deactivate <strong>{itemToDeactivate?.name}</strong>? 
+            Deactivated items will no longer appear in stock operations but will remain in history.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => { setDeactivateDialogOpen(false); setItemToDeactivate(null); }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={async () => {
+              if (!itemToDeactivate) return;
+              try {
+                const res = await consumableApi.updateConsumable(itemToDeactivate._id, { status: 'inactive' });
+                if (res?.success) {
+                  toast.success('Consumable deactivated successfully');
+                  await fetchItems();
+                } else {
+                  toast.error(res?.message || 'Failed to deactivate consumable');
+                }
+              } catch (err) {
+                toast.error(err?.response?.data?.message || 'Failed to deactivate consumable');
+              } finally {
+                setDeactivateDialogOpen(false);
+                setItemToDeactivate(null);
+              }
+            }}
+          >
+            Yes, Deactivate
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -690,13 +740,6 @@ const ConsumablesPage = () => {
                   ? `Max: ${selectedItem.quantity ?? 0}`
                   : '')
               }
-            />
-
-            <TextField
-              fullWidth
-              label="Reference / PO No."
-              value={stockReference}
-              onChange={(e) => setStockReference(e.target.value)}
             />
 
             <TextField
@@ -787,6 +830,21 @@ const ConsumablesPage = () => {
                       {s.charAt(0).toUpperCase() + s.slice(1)}
                     </MenuItem>
                   ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth>
+                <InputLabel id="con-form-movement-label">Movement Classification</InputLabel>
+                <Select
+                  labelId="con-form-movement-label"
+                  label="Movement Classification"
+                  value={formData.movementClassification}
+                  onChange={(e) => setField('movementClassification', e.target.value)}
+                >
+                  <MenuItem value="fast">Fast Moving</MenuItem>
+                  <MenuItem value="medium">Medium Moving</MenuItem>
+                  <MenuItem value="low">Low Moving</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

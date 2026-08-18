@@ -33,12 +33,58 @@ const startOfYear = () => {
   return d;
 };
 
+const startOfMonth = () => {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const endOfMonth = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1, 0);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
 export const getDashboardStats = async (req, res) => {
   try {
     const todayStart = startOfDay();
     const todayEnd = endOfDay();
-    const thirtyDaysAgo = startOfDaysAgo(29);
-    const yearStart = startOfYear();
+
+    // Movement-classification-aware low-stock count.
+    // Must exactly match the client-side getStockStatusInfo() logic in SparePartsPage.jsx:
+    //
+    //   const t = MOVEMENT_THRESHOLDS[movementClassification] || MOVEMENT_THRESHOLDS.medium
+    //   if (qty <= t.out) → "out"        (out = 0 for all classifications)
+    //   if (qty <= t.low) → "low"        (low = 1 for fast/medium, 0 for "low")
+    //   else              → "good"
+    //
+    // Therefore "low stock" means:  quantity > 0  AND  quantity <= 1
+    //   … for fast  classification (t.low = 1)
+    //   … for medium classification (t.low = 1)
+    //   … for null/undefined field  (defaults to medium → t.low = 1)
+    //
+    // "low" classification has t.low = 0, same as t.out = 0,
+    // so the qty <= t.low check can never fire after qty <= t.out is ruled out → never "low".
+    //
+    // Bottom line: low stock ≡  quantity = 1  AND  classification ≠ "low"
+    const lowStockQuery = {
+      status: "active",
+      quantity: 1,                                   // strictly equal — qty=0 is out, qty≥2 is good
+      movementClassification: { $in: ["fast", "medium"] },  // "low" classification has no low band
+    };
+    // Also count documents where movementClassification is absent — treated as "medium" by the client
+    const lowStockQueryMissingField = {
+      status: "active",
+      quantity: 1,
+      movementClassification: { $exists: false },
+    };
+    const lowStockQueryNullField = {
+      status: "active",
+      quantity: 1,
+      movementClassification: null,
+    };
 
     const [
       totalSpareParts,
@@ -47,7 +93,6 @@ export const getDashboardStats = async (req, res) => {
       totalTools,
       totalBorrowedTools,
       itemsBorrowedToday,
-      greenStocks,
       warningStocks,
       outOfStock,
       todayStockIn,
@@ -62,15 +107,9 @@ export const getDashboardStats = async (req, res) => {
       BorrowedTool.countDocuments({
         borrowDate: { $gte: todayStart, $lte: todayEnd },
       }),
+      // Low stock count: three separate cases merged into one $or query
       SparePart.countDocuments({
-        quantity: { $gt: 0 },
-        $expr: { $gt: ["$quantity", "$minStockLevel"] },
-        status: "active",
-      }),
-      SparePart.countDocuments({
-        quantity: { $gt: 0 },
-        $expr: { $lte: ["$quantity", "$minStockLevel"] },
-        status: "active",
+        $or: [lowStockQuery, lowStockQueryMissingField, lowStockQueryNullField],
       }),
       SparePart.countDocuments({ quantity: 0, status: "active" }),
       Transaction.aggregate([
@@ -110,7 +149,6 @@ export const getDashboardStats = async (req, res) => {
         totalTools,
         totalBorrowedTools,
         itemsBorrowedToday,
-        greenStocks,
         warningStocks,
         outOfStock,
         lowStockItems: warningStocks,
@@ -188,7 +226,7 @@ export const getRecentActivity = async (req, res) => {
         user: tx.user?.fullName || "",
         quantity: tx.quantity,
         reference: tx.reference || "",
-        createdAt: tx.date || tx.createdAt,
+        createdAt: tx.createdAt,
         sku: tx.sparePart?.sku || tx.consumable?.sku || tx.tool?.toolCode || "",
       };
     });
@@ -418,6 +456,227 @@ export const getFrequentParts = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error while fetching frequent parts",
+    });
+  }
+};
+
+// Get low stock items with details - using movement classification thresholds
+export const getLowStockItems = async (req, res) => {
+  try {
+    // For spare parts: low stock means quantity <= thresholds.low for their movement classification
+    const spareParts = await SparePart.find({
+      quantity: { $gt: 0 },
+      status: "active",
+    })
+      .populate("category", "name")
+      .sort({ quantity: 1 });
+
+    // For consumables: low stock means quantity <= thresholds.low for their movement classification
+    const consumables = await Consumable.find({
+      quantity: { $gt: 0 },
+      status: "active",
+    }).sort({ quantity: 1 });
+
+    // Filter to only include items that are actually low based on their movement classification
+    const LOW_STOCK_THRESHOLDS = { fast: 1, medium: 1, low: 0 };
+    const filteredSpareParts = spareParts.filter(p => p.quantity <= (LOW_STOCK_THRESHOLDS[p.movementClassification || "medium"] || 1));
+    const filteredConsumables = consumables.filter(c => c.quantity <= (LOW_STOCK_THRESHOLDS[c.movementClassification || "medium"] || 1));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        spareParts: filteredSpareParts.map(p => ({
+          id: p._id,
+          name: p.name,
+          sku: p.sku,
+          category: p.category?.name || p.category,
+          quantity: p.quantity,
+          minStockLevel: p.minStockLevel,
+          movementClassification: p.movementClassification,
+          unitPrice: p.unitPrice,
+        })),
+        consumables: filteredConsumables.map(c => ({
+          id: c._id,
+          name: c.name,
+          unit: c.unit,
+          quantity: c.quantity,
+          minStockLevel: c.minStockLevel,
+          movementClassification: c.movementClassification,
+          unitPrice: c.unitPrice,
+        })),
+        total: filteredSpareParts.length + filteredConsumables.length,
+      },
+    });
+  } catch (error) {
+    console.error("getLowStockItems error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching low stock items",
+    });
+  }
+};
+
+// Get out of stock items with details
+export const getOutOfStockItems = async (req, res) => {
+  try {
+    const spareParts = await SparePart.find({ quantity: 0, status: "active" })
+      .populate("category", "name")
+      .sort({ name: 1 });
+
+    const consumables = await Consumable.find({ quantity: 0, status: "active" }).sort({ name: 1 });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        spareParts: spareParts.map(p => ({
+          id: p._id,
+          name: p.name,
+          sku: p.sku,
+          category: p.category?.name || p.category,
+          quantity: 0,
+          minStockLevel: p.minStockLevel,
+          unitPrice: p.unitPrice,
+        })),
+        consumables: consumables.map(c => ({
+          id: c._id,
+          name: c.name,
+          unit: c.unit,
+          quantity: 0,
+          minStockLevel: c.minStockLevel,
+          unitPrice: c.unitPrice,
+        })),
+        total: spareParts.length + consumables.length,
+      },
+    });
+  } catch (error) {
+    console.error("getOutOfStockItems error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching out of stock items",
+    });
+  }
+};
+
+// Get stock in transactions history
+export const getStockInHistory = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const currentMonth = req.query.currentMonth === 'true';
+    
+    let dateFilter = {};
+    if (currentMonth) {
+      dateFilter = {
+        date: { $gte: startOfMonth(), $lte: endOfMonth() }
+      };
+    }
+
+    const transactions = await Transaction.find({ 
+      type: { $in: ["stockIn", "consumableStockIn"] },
+      ...dateFilter
+    })
+      .sort({ date: -1, createdAt: -1 })
+      .limit(limit)
+      .populate({
+        path: "sparePart",
+        select: "name sku category",
+        populate: {
+          path: "category",
+          select: "name"
+        }
+      })
+      .populate("consumable", "name unit")
+      .populate("receivedByUser", "fullName");
+
+    const history = transactions.map(tx => ({
+      id: tx._id,
+      date: tx.date,
+      type: tx.type,
+      itemType: tx.itemType,
+      itemName: tx.sparePart?.name || tx.consumable?.name || tx.itemName || "Unknown",
+      sku: tx.sparePart?.sku || tx.consumable?.sku || "",
+      category: tx.sparePart?.category?.name || "General",
+      unit: tx.consumable?.unit || tx.unit || "pcs",
+      quantity: tx.quantity,
+      receivedBy: tx.receivedByUser?.fullName || tx.receivedBy || "Unknown",
+      reference: tx.reference || "-",
+      remarks: tx.remarks || "",
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions: history,
+        total: history.length,
+      },
+    });
+  } catch (error) {
+    console.error("getStockInHistory error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching stock in history",
+    });
+  }
+};
+
+// Get stock out transactions history
+export const getStockOutHistory = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const currentMonth = req.query.currentMonth === 'true';
+    
+    let dateFilter = {};
+    if (currentMonth) {
+      dateFilter = {
+        date: { $gte: startOfMonth(), $lte: endOfMonth() }
+      };
+    }
+
+    const transactions = await Transaction.find({ 
+      type: { $in: ["stockOut", "consumableRelease"] },
+      ...dateFilter
+    })
+      .sort({ date: -1, createdAt: -1 })
+      .limit(limit)
+      .populate({
+        path: "sparePart",
+        select: "name sku category",
+        populate: {
+          path: "category",
+          select: "name"
+        }
+      })
+      .populate("consumable", "name unit")
+      .populate("user", "fullName");
+
+    const history = transactions.map(tx => ({
+      id: tx._id,
+      date: tx.date,
+      type: tx.type,
+      itemType: tx.itemType,
+      itemName: tx.sparePart?.name || tx.consumable?.name || tx.itemName || "Unknown",
+      sku: tx.sparePart?.sku || tx.consumable?.sku || "",
+      category: tx.sparePart?.category?.name || "General",
+      unit: tx.consumable?.unit || tx.unit || "pcs",
+      quantity: tx.quantity,
+      employeeName: tx.employeeName || tx.user?.fullName || "Unknown",
+      department: tx.department || "-",
+      machine: tx.machine || "-",
+      reference: tx.reference || "-",
+      remarks: tx.remarks || "",
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions: history,
+        total: history.length,
+      },
+    });
+  } catch (error) {
+    console.error("getStockOutHistory error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching stock out history",
     });
   }
 };

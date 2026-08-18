@@ -132,10 +132,9 @@ const ToolsInventoryPage = () => {
   // Add Tool dialog
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addSubmitting, setAddSubmitting] = useState(false);
-const [addForm, setAddForm] = useState({
+  const [addForm, setAddForm] = useState({
     name: '',
     category: '',
-    condition: 'good',
     status: 'available',
   });
   const [addFormErrors, setAddFormErrors] = useState({});
@@ -397,7 +396,6 @@ const [addForm, setAddForm] = useState({
     setAddForm({
       name: '',
       category: '',
-      condition: 'good',
       status: 'available',
     });
     setAddFormErrors({});
@@ -406,6 +404,12 @@ const [addForm, setAddForm] = useState({
 
   const closeAddDialog = () => {
     setAddDialogOpen(false);
+    setAddForm({
+      name: '',
+      category: '',
+      status: 'available',
+    });
+    setAddFormErrors({});
   };
 
   const setAddField = (field, value) => {
@@ -419,7 +423,7 @@ const [addForm, setAddForm] = useState({
     }
   };
 
-const validateAddForm = () => {
+  const validateAddForm = () => {
     const errors = {};
     if (!addForm.name?.trim()) errors.name = 'Tool name is required';
     else if (addForm.name.trim().length < 2) errors.name = 'Name must be at least 2 characters';
@@ -436,7 +440,6 @@ const validateAddForm = () => {
         name: addForm.name.trim(),
         toolCode: `TOOL-${Date.now()}`,
         category: addForm.category.trim(),
-        condition: addForm.condition,
         status: addForm.status,
       };
       const res = await toolApi.createTool(payload);
@@ -543,27 +546,28 @@ const validateAddForm = () => {
           { label: 'Under Maintenance', value: stats.maintenance, icon: <FaWrench />, color: 'info.main' },
           { label: 'Damaged Tools', value: stats.damaged, icon: <FaExclamationTriangle />, color: 'error.main' },
         ].map((item) => (
-          <Grid item xs={12} sm={6} md={true} key={item.label}>
+          <Grid item xs={12} sm={6} md={4} lg={2.4} key={item.label} sx={{ minWidth: 0 }}>
             <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
+              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontSize: '0.75rem' }}>
                       {item.label}
                     </Typography>
-                    <Typography variant="h4" fontWeight={700} color={item.color}>
+                    <Typography variant="h5" fontWeight={700} color={item.color}>
                       {item.value}
                     </Typography>
                   </Box>
                   <Box
                     sx={{
-                      fontSize: 32,
+                      fontSize: 24,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      p: 1,
+                      flexShrink: 0,
+                      p: 0.75,
                       bgcolor: item.color,
-                      borderRadius: 2,
+                      borderRadius: 1,
                       color: 'white',
                     }}
                   >
@@ -731,6 +735,77 @@ const validateAddForm = () => {
                   )}
                 </Grid>
               </Box>
+
+              {selectedTool.documentation && (
+                <>
+                  <Divider />
+
+                  {/* Documentation Section */}
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                      Documentation
+                    </Typography>
+                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                      {/* Manual */}
+                      {selectedTool.documentation?.manual?.hasDocument && (
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="caption" color="text.secondary">Manual</Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedTool.documentation.manual.title || 'Manual'}
+                            {selectedTool.documentation.manual.reference && (
+                              <Typography variant="caption" display="block">
+                                {selectedTool.documentation.manual.reference}
+                              </Typography>
+                            )}
+                          </Typography>
+                        </Grid>
+                      )}
+                      {/* Service Manual */}
+                      {selectedTool.documentation?.serviceManual?.hasDocument && (
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="caption" color="text.secondary">Service Manual</Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedTool.documentation.serviceManual.title || 'Service Manual'}
+                            {selectedTool.documentation.serviceManual.reference && (
+                              <Typography variant="caption" display="block">
+                                {selectedTool.documentation.serviceManual.reference}
+                              </Typography>
+                            )}
+                          </Typography>
+                        </Grid>
+                      )}
+                      {/* Operating Guide */}
+                      {selectedTool.documentation?.operatingGuide?.hasDocument && (
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="caption" color="text.secondary">Operating Guide</Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedTool.documentation.operatingGuide.title || 'Operating Guide'}
+                            {selectedTool.documentation.operatingGuide.reference && (
+                              <Typography variant="caption" display="block">
+                                {selectedTool.documentation.operatingGuide.reference}
+                              </Typography>
+                            )}
+                          </Typography>
+                        </Grid>
+                      )}
+                      {/* Other Documents */}
+                      {selectedTool.documentation?.otherDocuments?.length > 0 && (
+                        <Grid item xs={12}>
+                          <Typography variant="caption" color="text.secondary">Other Documents</Typography>
+                          {selectedTool.documentation.otherDocuments.map((doc, idx) => (
+                            <Box key={idx} sx={{ mt: 0.5 }}>
+                              <Typography variant="body2" fontWeight={500}>
+                                [{doc.type?.toUpperCase()}] {doc.title}
+                                {doc.reference && <Typography variant="caption" display="block">{doc.reference}</Typography>}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Grid>
+                      )}
+                    </Grid>
+                  </Box>
+                </>
+              )}
 
               <Divider />
 
@@ -1028,9 +1103,8 @@ const validateAddForm = () => {
       <Dialog
         open={addDialogOpen}
         onClose={addSubmitting ? undefined : closeAddDialog}
-        maxWidth="md"
+        maxWidth="xs"
         fullWidth
-        scroll="paper"
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1040,7 +1114,7 @@ const validateAddForm = () => {
             </Typography>
           </Box>
         </DialogTitle>
-<DialogContent dividers>
+        <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12}>
               <TextField
@@ -1051,6 +1125,7 @@ const validateAddForm = () => {
                 error={!!addFormErrors.name}
                 helperText={addFormErrors.name}
                 required
+                size="small"
               />
             </Grid>
             <Grid item xs={12}>
@@ -1062,33 +1137,18 @@ const validateAddForm = () => {
                 error={!!addFormErrors.category}
                 helperText={addFormErrors.category}
                 required
+                size="small"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel id="add-tool-condition-label">Condition</InputLabel>
-                <Select
-                  labelId="add-tool-condition-label"
-                  label="Condition"
-                  value={addForm.condition}
-                  onChange={(e) => setAddField('condition', e.target.value)}
-                >
-                  {conditionOptions.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel id="add-tool-status-label">Status</InputLabel>
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="add-tool-status-label">Status *</InputLabel>
                 <Select
                   labelId="add-tool-status-label"
-                  label="Status"
+                  label="Status *"
                   value={addForm.status}
                   onChange={(e) => setAddField('status', e.target.value)}
+                  required
                 >
                   <MenuItem value="available">Available</MenuItem>
                   <MenuItem value="maintenance">Under Maintenance</MenuItem>

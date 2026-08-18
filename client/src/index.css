@@ -167,6 +167,68 @@ input[type='date']:valid::-webkit-datetime-edit {
   }
 }
 
+/* =========================================================
+   Monthly Transaction Report - Print Styles
+   ========================================================= */
+@media print {
+  /* Monthly Transaction Report header */
+  .report-print-area .report-header {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .report-print-area .report-header .MuiTypography-root {
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* Transaction table - ensure all columns print properly */
+  .report-print-area .report-transaction-table {
+    font-size: 9px;
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 !important;
+  }
+
+  .report-print-area .report-transaction-table .MuiTableCell-root {
+    padding: 3px 5px;
+    border: 1px solid #333 !important;
+    font-size: 9px;
+    line-height: 1.2;
+    background: #ffffff !important;
+    word-wrap: break-word;
+  }
+
+  /* Ensure the table header repeats on each page */
+  .report-print-area .report-transaction-table thead {
+    display: table-header-group;
+  }
+
+  /* Prevent transaction rows from being split */
+  .report-print-area .report-transaction-table tbody tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Signature block for transaction report */
+  .report-print-area .report-signatures {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 12px !important;
+  }
+
+  /* Ensure the transaction report fills the page */
+  .report-print-area .MuiPaper-root.report-transaction-paper {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+}
+
 /* Page indicator placed in the upper-right corner of the report.
    Uses position:fixed so it repeats on every printed page.
    Sits within the @page top/right margin so it never overlaps

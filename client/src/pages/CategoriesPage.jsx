@@ -235,10 +235,12 @@ const CategoriesPage = () => {
             </Grid>
             <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1, flexWrap: 'wrap' }}>
               <FormControl size="small" sx={{ minWidth: 160 }}>
-                <InputLabel>Category Status</InputLabel>
+                <InputLabel shrink>Category Status</InputLabel>
                 <Select
                   value={statusFilter}
                   label="Category Status"
+                  displayEmpty
+                  notched
                   onChange={(e) => {
                     setStatusFilter(e.target.value);
                     setPage(0);
@@ -273,9 +275,9 @@ const CategoriesPage = () => {
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell sx={{ fontWeight: 600, width: 110 }}>Sort Order</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Machine</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Sort Order</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
               </TableRow>
@@ -297,6 +299,7 @@ const CategoriesPage = () => {
                   const count = sparePartCounts[catId] || 0;
                   return (
                     <TableRow key={catId} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{category.sortOrder ?? 0}</TableCell>
                       <TableCell>
                         <Typography fontWeight={500}>
                           {category.name || '-'}
@@ -308,7 +311,6 @@ const CategoriesPage = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>{category.machine || '-'}</TableCell>
-                      <TableCell>{category.sortOrder ?? 0}</TableCell>
                       <TableCell>
                         <Chip
                           label={(category.status || 'active').charAt(0).toUpperCase() + (category.status || 'active').slice(1)}

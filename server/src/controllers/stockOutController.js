@@ -3,9 +3,18 @@ import Consumable from "../models/Consumable.js";
 import Transaction from "../models/Transaction.js";
 import Notification from "../models/Notification.js";
 
-const getStockStatus = (quantity, minStockLevel) => {
-  if (quantity <= 0) return "red";
-  if (quantity <= minStockLevel) return "orange";
+// Movement classification thresholds for stock status calculation
+const MOVEMENT_THRESHOLDS = {
+  fast: { good: 10, low: 1, out: 0 },
+  medium: { good: 5, low: 1, out: 0 },
+  low: { good: 1, low: 0, out: 0 },
+};
+
+const getStockStatus = (quantity, minStockLevel, movementClassification = "medium") => {
+  const thresholds = MOVEMENT_THRESHOLDS[movementClassification] || MOVEMENT_THRESHOLDS.medium;
+  
+  if (quantity <= thresholds.out) return "red";
+  if (quantity <= thresholds.low) return "orange";
   return "green";
 };
 
@@ -102,12 +111,12 @@ export const recordStockOut = async (req, res) => {
       });
     }
 
-    const oldStatus = getStockStatus(part.quantity, part.minStockLevel);
+    const oldStatus = getStockStatus(part.quantity, part.minStockLevel, part.movementClassification);
 
     part.quantity = part.quantity - quantity;
     await part.save();
 
-    const newStatus = getStockStatus(part.quantity, part.minStockLevel);
+    const newStatus = getStockStatus(part.quantity, part.minStockLevel, part.movementClassification);
 
     const transaction = await Transaction.create({
       type: "stockOut",
@@ -211,12 +220,12 @@ export const consumableRelease = async (req, res) => {
       });
     }
 
-    const oldStatus = getStockStatus(item.quantity, item.minStockLevel);
+    const oldStatus = getStockStatus(item.quantity, item.minStockLevel, item.movementClassification);
 
     item.quantity = item.quantity - quantity;
     await item.save();
 
-    const newStatus = getStockStatus(item.quantity, item.minStockLevel);
+    const newStatus = getStockStatus(item.quantity, item.minStockLevel, item.movementClassification);
 
     const transaction = await Transaction.create({
       type: "consumableRelease",

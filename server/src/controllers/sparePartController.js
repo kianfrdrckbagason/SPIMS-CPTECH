@@ -41,6 +41,8 @@ export const createSparePart = async (req, res) => {
       unitPrice,
       reorderLevel,
       status,
+      movementClassification,
+      sortOrder,
     } = req.body;
 
     const sku = rawSku?.trim().toUpperCase() || generateSkuFromName(name);
@@ -66,6 +68,8 @@ export const createSparePart = async (req, res) => {
       unitPrice: unitPrice ?? 0,
       reorderLevel: reorderLevel ?? 10,
       status: status || "active",
+      movementClassification: movementClassification || "medium",
+      sortOrder: sortOrder ?? 0,
     });
 
     const populated = await SparePart.findById(sparePart._id)
@@ -125,8 +129,7 @@ export const getSpareParts = async (req, res) => {
       category,
       machine,
       status,
-      sortBy = "createdAt",
-      sortOrder = "desc",
+      stockStatus,   // 'good' | 'low' | 'out' — movement-classification-aware
       page = 1,
       limit = 0,
     } = req.query;
@@ -155,8 +158,32 @@ export const getSpareParts = async (req, res) => {
       query.status = { $in: statuses };
     }
 
-    const sort = {};
-    sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+    // ── Stock status filter (mirrors client-side getStockStatusInfo logic) ──────
+    // Thresholds: fast → low=1, medium → low=1, low → low=0 (no low band)
+    // Missing/null movementClassification defaults to medium behaviour.
+    if (stockStatus === "out") {
+      query.quantity = 0;
+    } else if (stockStatus === "low") {
+      // qty = 1 AND classification is fast, medium, or absent (all treated as medium)
+      query.quantity = 1;
+      query.$or = [
+        { movementClassification: { $in: ["fast", "medium"] } },
+        { movementClassification: { $exists: false } },
+        { movementClassification: null },
+      ];
+    } else if (stockStatus === "good") {
+      // qty ≥ 1 but NOT in the "low" band:
+      //   fast/medium/absent: qty ≥ 2
+      //   low classification: qty ≥ 1 (no low band)
+      query.$or = [
+        { movementClassification: { $in: ["fast", "medium"] }, quantity: { $gte: 2 } },
+        { movementClassification: { $exists: false }, quantity: { $gte: 2 } },
+        { movementClassification: null, quantity: { $gte: 2 } },
+        { movementClassification: "low", quantity: { $gte: 1 } },
+      ];
+    }
+
+    const sort = { sortOrder: 1, createdAt: -1 };
 
     const skip = page > 0 && limit > 0 ? (page - 1) * limit : 0;
     const limitNum = parseInt(limit) || 0;
@@ -246,6 +273,8 @@ export const updateSparePart = async (req, res) => {
       unitPrice,
       reorderLevel,
       status,
+      movementClassification,
+      sortOrder,
     } = req.body;
 
     let sparePart = await SparePart.findById(req.params.id);
@@ -281,6 +310,8 @@ export const updateSparePart = async (req, res) => {
     if (unitPrice !== undefined) updateData.unitPrice = unitPrice;
     if (reorderLevel !== undefined) updateData.reorderLevel = reorderLevel;
     if (status !== undefined) updateData.status = status;
+    if (movementClassification !== undefined) updateData.movementClassification = movementClassification;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
     sparePart = await SparePart.findByIdAndUpdate(
       req.params.id,

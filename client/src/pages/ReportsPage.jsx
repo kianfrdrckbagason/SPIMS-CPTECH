@@ -152,41 +152,53 @@ const MonthlyInventoryReport = () => {
               {selectedCatName && <Typography variant="body1">Category: {selectedCatName}</Typography>}
             </Box>
 
-            {report.categories.map((cat) => (
-              <Box key={cat.category} className="category-group" sx={{ mb: 3 }}>
-                <Typography className="category-title" variant="subtitle1" fontWeight={700} sx={{ mb: 1, textTransform: 'uppercase' }}>
-                  {cat.category}
+            {report.categories.length === 0 ? (
+              /* ── Empty state: no inventory records for this month (Task #48) ── */
+              <Box sx={{ textAlign: 'center', py: 6 }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No Inventory found for {report.monthLabel}.
                 </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'grey.100' }}>
-                        <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Part</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700 }}>Unit</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700 }}>Beginning</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700 }}>Stock In</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700 }}>Stock Out</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700 }}>Ending</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {cat.items.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{cat.category}</TableCell>
-                          <TableCell>{item.part}</TableCell>
-                          <TableCell align="center">{item.unit}</TableCell>
-                          <TableCell align="center">{item.beginning}</TableCell>
-                          <TableCell align="center">{item.stockIn}</TableCell>
-                          <TableCell align="center">{item.stockOut}</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 700 }}>{item.ending}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                <Typography variant="body2" color="text.secondary">
+                  There are no inventory records for this period. Try selecting a different month.
+                </Typography>
               </Box>
-            ))}
+            ) : (
+              report.categories.map((cat) => (
+                <Box key={cat.category} className="category-group" sx={{ mb: 3 }}>
+                  <Typography className="category-title" variant="subtitle1" fontWeight={700} sx={{ mb: 1, textTransform: 'uppercase' }}>
+                    {cat.category}
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.100' }}>
+                          <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Part</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700 }}>Unit</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700 }}>Beginning</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700 }}>Stock In</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700 }}>Stock Out</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700 }}>Ending</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {cat.items.map((item, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{cat.category}</TableCell>
+                            <TableCell>{item.part}</TableCell>
+                            <TableCell align="center">{item.unit}</TableCell>
+                            <TableCell align="center">{item.beginning}</TableCell>
+                            <TableCell align="center">{item.stockIn}</TableCell>
+                            <TableCell align="center">{item.stockOut}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700 }}>{item.ending}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              ))
+            )}
 
             <Box className="report-signatures" sx={{ mt: 6 }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>Date Generated: {generatedDate}</Typography>
@@ -276,7 +288,7 @@ const MonthlyTransactionReport = () => {
 
       {report ? (
         <Box className="report-print-area">
-          <Paper elevation={0} sx={{ p: { xs: 2, sm: 4 }, bgcolor: 'background.paper' }}>
+          <Paper elevation={0} sx={{ p: { xs: 2, sm: 4 }, bgcolor: 'background.paper' }} className="report-transaction-paper">
             {/* Header */}
             <Box className="report-header" sx={{ textAlign: 'center', mb: 3 }}>
               <Typography variant="h5" fontWeight={800} letterSpacing={1}>SPIMS-CPTECH</Typography>
@@ -296,7 +308,7 @@ const MonthlyTransactionReport = () => {
                 No transactions found for {report.monthLabel}.
               </Typography>
             ) : (
-              <TableContainer component={Paper} variant="outlined">
+              <TableContainer component={Paper} variant="outlined" className="report-transaction-table">
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'grey.100' }}>

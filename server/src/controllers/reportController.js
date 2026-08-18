@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import PDFDocument from "pdfkit";
 import SparePart from "../models/SparePart.js";
 import Consumable from "../models/Consumable.js";
 import Transaction from "../models/Transaction.js";
@@ -63,103 +64,416 @@ const getDateFilter = (period, year, month, day) => {
   return { date: { $gte: start, $lte: end } };
 };
 
+// =============================================================================
+// TRANSACTIONS REPORT  (PDF + Excel)
+// 8 columns — no SKU: Date&Time | Type | Item | Qty | Bal.After |
+//                     Employee/Dept | Machine | Remarks
+// + Signatories section at the bottom
+// =============================================================================
 export const generateTransactionsReport = async (req, res) => {
   try {
     const {
-      period = "daily", format = "excel", year, month, day, fromDate, toDate, type } = req.query;
+      format = "excel",
+      startDate, endDate,   // sent by TransactionsPage
+      fromDate,  toDate,    // legacy aliases
+      type,
+      itemType,
+    } = req.query;
 
-    let filter = {};
-    if (fromDate || toDate) {
+    const resolvedFrom = startDate || fromDate || null;
+    const resolvedTo   = endDate   || toDate   || null;
+
+    // ── Filter ────────────────────────────────────────────────────────────────
+    const filter = {};
+    if (resolvedFrom || resolvedTo) {
       filter.date = {};
-      if (fromDate) filter.date.$gte = new Date(fromDate);
-      if (toDate) {
-        const end = new Date(toDate);
+      if (resolvedFrom) filter.date.$gte = new Date(resolvedFrom);
+      if (resolvedTo) {
+        const end = new Date(resolvedTo);
         end.setHours(23, 59, 59, 999);
         filter.date.$lte = end;
       }
-    } else {
-      filter = getDateFilter(period, year ? parseInt(year) : undefined, month ? parseInt(month) - 1 : undefined, day ? parseInt(day) : undefined);
     }
-    if (type) filter.type = type;
+    if (type) {
+      const types = type.split(",").map((t) => t.trim()).filter(Boolean);
+      filter.type = types.length === 1 ? types[0] : { $in: types };
+    }
+    if (itemType) {
+      const itemTypes = itemType.split(",").map((t) => t.trim()).filter(Boolean);
+      filter.itemType = itemTypes.length === 1 ? itemTypes[0] : { $in: itemTypes };
+    }
 
+    // ── Fetch — newest first ──────────────────────────────────────────────────
     const transactions = await Transaction.find(filter)
-      .sort({ date: 1 })
+      .sort({ createdAt: -1, date: -1 })
       .populate("sparePart", "name sku")
-      .populate("consumable", "name sku")
+      .populate("consumable", "name sku unit")
       .populate("tool", "name toolCode")
-      .populate("user", "fullName");
+      .populate("user", "fullName email");
 
-    const now2 = new Date();
-    const periodLabels = {
-      daily: `Daily - ${now2.toLocaleDateString()}`,
-      weekly: `Weekly - ${startOf("week").toLocaleDateString()} - ${endOf("week").toLocaleDateString()}`,
-      monthly: `Monthly - ${new Date(year ?? now2.getFullYear(), (month ?? now2.getMonth() + 1) - 1).toLocaleString("en-US", { month: "long", year: "numeric" })}`,
-      annual: `Annual - ${year ?? now2.getFullYear()}`,
+    // ── Shared helpers ────────────────────────────────────────────────────────
+    const fmtDateLabel = (d) =>
+      d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "";
+    const periodLabel =
+      resolvedFrom || resolvedTo
+        ? `${fmtDateLabel(resolvedFrom) || "All"} – ${fmtDateLabel(resolvedTo) || "All"}`
+        : "All Transactions";
+
+    const TYPE_LABELS = {
+      stockIn:              "Stock In",
+      stockOut:             "Stock Out",
+      adjustment:           "Adjustment",
+      borrowTool:           "Borrow Tool",
+      returnTool:           "Return Tool",
+      consumableRelease:    "Consumable Release",
+      consumableStockIn:    "Consumable Stock In",
+      consumableAdjustment: "Consumable Adjustment",
     };
-    const periodLabel = fromDate || toDate
-      ? `${fromDate || "Start"} to ${toDate || "End"}`
-      : (periodLabels[period] || period);
 
+    // Build the 8-column display row (no SKU)
+    const buildRow = (tx) => {
+      const item    = tx.sparePart?.name || tx.consumable?.name || tx.tool?.name || "";
+      const emp     = [tx.employeeName, tx.department].filter(Boolean).join(" / ");
+      const dateStr = tx.createdAt
+        ? new Date(tx.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })
+        : new Date(tx.date).toLocaleDateString("en-PH");
+      return {
+        date:     dateStr,
+        type:     TYPE_LABELS[tx.type] || tx.type || "",
+        item,
+        qty:      String(tx.quantity ?? ""),
+        balance:  tx.balanceAfter != null ? String(tx.balanceAfter) : "",
+        employee: emp,
+        machine:  tx.machine || "",
+        remarks:  tx.remarks || tx.adjustmentReason || "",
+      };
+    };
+
+    // =========================================================================
+    // PDF
+    // =========================================================================
     if (format === "pdf") {
-      res.setHeader("Content-Type", "application/json");
-      res.status(200).json({
-        success: true,
-        message: "PDF export is unavailable in this environment, but the report data is ready for download as Excel.",
-        data: { periodLabel, transactionsCount: transactions.length },
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="transactions_${Date.now()}.pdf"`);
+
+      // Landscape A4: 841.89 × 595.28 pt
+      const MARGIN   = 36;
+      const PAGE_W   = 841.89;
+      const PAGE_H   = 595.28;
+      const USABLE_W = PAGE_W - MARGIN * 2;   // 769.89 pt
+
+      const doc = new PDFDocument({
+        size: "A4",
+        layout: "landscape",
+        margin: MARGIN,
+        autoFirstPage: true,
+        bufferPages: false,
       });
+      doc.pipe(res);
+
+      // ── Column definitions (widths sum to 770 = USABLE_W) ─────────────────
+      const COLS = [
+        { label: "Date & Time",     key: "date",     w: 112, align: "left"  },
+        { label: "Type",            key: "type",     w:  92, align: "left"  },
+        { label: "Item",            key: "item",     w: 168, align: "left"  },
+        { label: "Qty",             key: "qty",      w:  32, align: "right" },
+        { label: "Bal. After",      key: "balance",  w:  48, align: "right" },
+        { label: "Employee / Dept", key: "employee", w: 128, align: "left"  },
+        { label: "Machine",         key: "machine",  w:  88, align: "left"  },
+        { label: "Remarks",         key: "remarks",  w: 102, align: "left"  },
+        // 112+92+168+32+48+128+88+102 = 770
+      ];
+
+      const FONT_SZ  = 7.5;   // data rows
+      const HEAD_SZ  = 7.5;   // header row
+      const LINE_H   = FONT_SZ + 2.5;   // line-height inside a cell
+      const PAD_X    = 3;                // horizontal padding
+      const PAD_Y    = 3;                // vertical padding
+      const HEAD_H   = LINE_H + PAD_Y * 2 + 2;   // ≈ 16 pt
+
+      // ── Estimate rendered row height for a data row ───────────────────────
+      // We approximate line-count by measuring chars-per-line for each column.
+      const estimateLines = (text, colW) => {
+        if (!text) return 1;
+        const innerW      = colW - PAD_X * 2;
+        // Average char width at FONT_SZ ≈ FONT_SZ * 0.50 pt
+        const charsPerLine = Math.max(1, Math.floor(innerW / (FONT_SZ * 0.50)));
+        const words = String(text).split(" ");
+        let lines = 1;
+        let used  = 0;
+        for (const w of words) {
+          if (used > 0 && used + 1 + w.length > charsPerLine) {
+            lines++;
+            used = w.length;
+          } else {
+            used += (used ? 1 : 0) + w.length;
+          }
+        }
+        return lines;
+      };
+
+      const calcRowH = (rowData) => {
+        const maxLines = Math.max(...COLS.map((c) => estimateLines(rowData[c.key], c.w)));
+        return Math.max(HEAD_H, maxLines * LINE_H + PAD_Y * 2);
+      };
+
+      // ── Draw header band ──────────────────────────────────────────────────
+      const drawHeader = (y) => {
+        // Background rect — save/restore keeps text cursor unaffected
+        doc.save().rect(MARGIN, y, USABLE_W, HEAD_H).fill("#1565c0").restore();
+        doc.font("Helvetica-Bold").fontSize(HEAD_SZ).fillColor("#ffffff");
+        let cx = MARGIN;
+        COLS.forEach((col) => {
+          doc.text(col.label, cx + PAD_X, y + PAD_Y, {
+            width:     col.w - PAD_X * 2,
+            align:     col.align,
+            lineBreak: false,
+          });
+          cx += col.w;
+        });
+      };
+
+      // ── Draw one data row ─────────────────────────────────────────────────
+      const drawDataRow = (rowData, y, rh, shade) => {
+        if (shade) {
+          doc.save().rect(MARGIN, y, USABLE_W, rh).fill("#f4f7fb").restore();
+        }
+        // Light horizontal rule at bottom of row
+        doc.save()
+          .moveTo(MARGIN, y + rh)
+          .lineTo(MARGIN + USABLE_W, y + rh)
+          .strokeColor("#e0e0e0").lineWidth(0.3).stroke()
+          .restore();
+
+        doc.font("Helvetica").fontSize(FONT_SZ).fillColor("#111111");
+        let cx = MARGIN;
+        COLS.forEach((col) => {
+          const val = String(rowData[col.key] ?? "");
+          doc.text(val, cx + PAD_X, y + PAD_Y, {
+            width:     col.w - PAD_X * 2,
+            height:    rh - PAD_Y * 2,
+            align:     col.align,
+            lineBreak: true,   // wrap within the column width
+          });
+          cx += col.w;
+        });
+      };
+
+      // ── Draw signatories ──────────────────────────────────────────────────
+      const SIG_LABELS  = ["Prepared by:", "Reviewed by:", "Approved by:"];
+      const SIG_BLOCK_H = 70;   // space needed for sig section
+
+      const drawSignatories = (startY) => {
+        const third = USABLE_W / 3;
+        SIG_LABELS.forEach((lbl, i) => {
+          const lx = MARGIN + i * third;
+          // Label
+          doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#1a1a1a")
+            .text(lbl, lx, startY, { width: third - 10, align: "left", lineBreak: false });
+          // Signature line (40 pt below label)
+          const lineY = startY + 40;
+          doc.save()
+            .moveTo(lx, lineY)
+            .lineTo(lx + third - 20, lineY)
+            .strokeColor("#444444").lineWidth(0.6).stroke()
+            .restore();
+          // "Name / Position" sub-label
+          doc.font("Helvetica").fontSize(7.5).fillColor("#666666")
+            .text("Name / Position", lx, lineY + 4, {
+              width: third - 10, align: "left", lineBreak: false,
+            });
+        });
+      };
+
+      // ── Title block ───────────────────────────────────────────────────────
+      doc.fontSize(13).font("Helvetica-Bold").fillColor("#1a1a1a")
+        .text("SPIMS – CPTECH  |  TRANSACTION HISTORY", MARGIN, MARGIN, {
+          align: "center", width: USABLE_W,
+        });
+      doc.fontSize(8).font("Helvetica").fillColor("#555555")
+        .text(
+          `Period: ${periodLabel}   |   Records: ${transactions.length}   |   Generated: ${new Date().toLocaleString("en-PH")}`,
+          MARGIN, MARGIN + 18, { align: "center", width: USABLE_W }
+        );
+
+      // ── Table ─────────────────────────────────────────────────────────────
+      let y = MARGIN + 42;
+      drawHeader(y);
+      y += HEAD_H;
+
+      transactions.forEach((tx, i) => {
+        const rowData = buildRow(tx);
+        const rh      = calcRowH(rowData);
+
+        // Need room for this row + sig block on last row
+        const isLast = i === transactions.length - 1;
+        const needed  = rh + (isLast ? SIG_BLOCK_H + 20 : 0);
+
+        if (y + needed > PAGE_H - MARGIN) {
+          doc.addPage({ size: "A4", layout: "landscape", margin: MARGIN });
+          y = MARGIN;
+          drawHeader(y);
+          y += HEAD_H;
+        }
+
+        drawDataRow(rowData, y, rh, i % 2 === 0);
+        y += rh;
+      });
+
+      // ── Record count line ─────────────────────────────────────────────────
+      y += 4;
+      doc.fontSize(7.5).font("Helvetica").fillColor("#888888")
+        .text(
+          `Total: ${transactions.length} transaction(s)`,
+          MARGIN, y, { width: USABLE_W, align: "right" }
+        );
+      y += 14;
+
+      // ── Signatories ───────────────────────────────────────────────────────
+      if (y + SIG_BLOCK_H > PAGE_H - MARGIN) {
+        doc.addPage({ size: "A4", layout: "landscape", margin: MARGIN });
+        y = MARGIN + 20;
+      }
+      drawSignatories(y + 10);
+
+      doc.end();
       return;
     }
 
+    // =========================================================================
+    // Excel
+    // =========================================================================
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "SPIMS";
+    workbook.creator = "SPIMS-CPTECH";
     workbook.created = new Date();
-    const worksheet = workbook.addWorksheet("Transactions");
+    const ws = workbook.addWorksheet("Transactions");
 
-    worksheet.columns = [
-      { header: "Date", key: "date", width: 18 },
-      { header: "Type", key: "type", width: 22 },
-      { header: "Item Type", key: "itemType", width: 14 },
-      { header: "Item Name", key: "itemName", width: 40 },
-      { header: "SKU/Code", key: "sku", width: 18 },
-      { header: "Quantity", key: "quantity", width: 10 },
-      { header: "Unit Price", key: "unitPrice", width: 12 },
-      { header: "Balance After", key: "balanceAfter", width: 14 },
-      { header: "Employee", key: "employeeName", width: 22 },
-      { header: "Department", key: "department", width: 18 },
-      { header: "Machine", key: "machine", width: 20 },
-      { header: "Received By", key: "receivedBy", width: 20 },
-      { header: "Released By", key: "releasedBy", width: 20 },
-      { header: "User", key: "user", width: 22 },
-      { header: "Reference", key: "reference", width: 18 },
-      { header: "Remarks", key: "remarks", width: 40 },
+    // ── 8 columns, no SKU ─────────────────────────────────────────────────────
+    ws.columns = [
+      { header: "Date & Time",     key: "date",     width: 22 },
+      { header: "Type",            key: "type",     width: 22 },
+      { header: "Item Name",       key: "item",     width: 38 },
+      { header: "Qty",             key: "qty",      width:  8 },
+      { header: "Balance After",   key: "balance",  width: 14 },
+      { header: "Employee / Dept", key: "employee", width: 32 },
+      { header: "Machine",         key: "machine",  width: 22 },
+      { header: "Remarks",         key: "remarks",  width: 38 },
     ];
-    worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-    worksheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1976D2" } };
-    worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
 
-    transactions.forEach((tx) => {
-      worksheet.addRow({
-        date: new Date(tx.date).toLocaleString(),
-        type: tx.type,
-        itemType: tx.itemType,
-        itemName: tx.sparePart?.name || tx.consumable?.name || tx.tool?.name || "",
-        sku: tx.sparePart?.sku || tx.consumable?.sku || tx.tool?.toolCode || "",
-        quantity: tx.quantity,
-        unitPrice: tx.unitPrice || 0,
-        balanceAfter: tx.balanceAfter ?? "",
-        employeeName: tx.employeeName || "",
-        department: tx.department || "",
-        machine: tx.machine || "",
-        receivedBy: tx.receivedBy || "",
-        releasedBy: tx.releasedBy || "",
-        user: tx.user?.fullName || "",
-        reference: tx.reference || "",
-        remarks: tx.remarks || "",
+    // Columns where text should wrap
+    const WRAP_KEYS = new Set(["item", "employee", "remarks"]);
+
+    // ── Header row ────────────────────────────────────────────────────────────
+    const hdr = ws.getRow(1);
+    hdr.font      = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    hdr.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1565C0" } };
+    hdr.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    hdr.height    = 22;
+
+    // Apply border to header cells
+    hdr.eachCell({ includeEmpty: true }, (cell) => {
+      cell.border = {
+        bottom: { style: "medium", color: { argb: "FF0D47A1" } },
+      };
+    });
+
+    // ── Data rows ─────────────────────────────────────────────────────────────
+    transactions.forEach((tx, i) => {
+      const d   = buildRow(tx);
+      const row = ws.addRow({
+        date:     d.date,
+        type:     d.type,
+        item:     d.item,
+        qty:      d.qty     !== "" ? Number(d.qty)     : "",
+        balance:  d.balance !== "" ? Number(d.balance) : "",
+        employee: d.employee,
+        machine:  d.machine,
+        remarks:  d.remarks,
+      });
+
+      row.height = 15; // base; Excel expands automatically when wrapText fires
+
+      const fillArgb = i % 2 === 0 ? "FFF4F7FB" : "FFFFFFFF";
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        const colKey = ws.getColumn(cell.col).key;
+        cell.fill    = { type: "pattern", pattern: "solid", fgColor: { argb: fillArgb } };
+        cell.border  = {
+          top:    { style: "thin", color: { argb: "FFE0E0E0" } },
+          bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+          left:   { style: "thin", color: { argb: "FFE8E8E8" } },
+          right:  { style: "thin", color: { argb: "FFE8E8E8" } },
+        };
+        cell.alignment = {
+          vertical:   "top",
+          horizontal: (colKey === "qty" || colKey === "balance") ? "right" : "left",
+          wrapText:   WRAP_KEYS.has(colKey),
+        };
       });
     });
 
+    // ── Signatories section ───────────────────────────────────────────────────
+    ws.addRow([]);   // blank spacer
+    ws.addRow([]);
+
+    // "Prepared by / Reviewed by / Approved by" labels
+    // Place in columns A, D, G  (col indices 1, 4, 7)
+    const lblRow = ws.addRow([]);
+    lblRow.height = 14;
+    const lblCells = [
+      { col: 1, text: "Prepared by:" },
+      { col: 4, text: "Reviewed by:" },
+      { col: 7, text: "Approved by:" },
+    ];
+    lblCells.forEach(({ col, text }) => {
+      const cell    = lblRow.getCell(col);
+      cell.value    = text;
+      cell.font     = { bold: true, size: 10 };
+      cell.alignment = { vertical: "middle", horizontal: "left" };
+    });
+
+    // Blank signature-space rows (3 rows ≈ 45 pt for handwriting)
+    ws.addRow([]).height = 15;
+    ws.addRow([]).height = 15;
+    ws.addRow([]).height = 15;
+
+    // Signature lines (underscores)
+    const lineRow = ws.addRow([]);
+    lineRow.height = 14;
+    const LINE = "_".repeat(30);
+    [
+      { col: 1, text: LINE },
+      { col: 4, text: LINE },
+      { col: 7, text: LINE },
+    ].forEach(({ col, text }) => {
+      const cell   = lineRow.getCell(col);
+      cell.value   = text;
+      cell.font    = { color: { argb: "FF888888" } };
+    });
+
+    // "Name / Position" sub-labels
+    const nameRow = ws.addRow([]);
+    nameRow.height = 12;
+    [
+      { col: 1, text: "Name / Position" },
+      { col: 4, text: "Name / Position" },
+      { col: 7, text: "Name / Position" },
+    ].forEach(({ col, text }) => {
+      const cell   = nameRow.getCell(col);
+      cell.value   = text;
+      cell.font    = { italic: true, color: { argb: "FF666666" }, size: 8.5 };
+      cell.alignment = { vertical: "top", horizontal: "left" };
+    });
+
+    // ── Freeze header row ─────────────────────────────────────────────────────
+    ws.views = [{ state: "frozen", ySplit: 1 }];
+
+    // ── Respond ───────────────────────────────────────────────────────────────
+    const safePeriod = (resolvedFrom || resolvedTo)
+      ? `${(resolvedFrom || "").replace(/-/g, "") || "start"}-${(resolvedTo || "").replace(/-/g, "") || "end"}`
+      : "all";
+
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="transactions_${period}_${Date.now()}.xlsx"`);
+    res.setHeader("Content-Disposition", `attachment; filename="transactions_${safePeriod}_${Date.now()}.xlsx"`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
@@ -384,7 +698,6 @@ export const generateMonthlyInventoryReport = async (req, res) => {
     const monthStart = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
     const monthEnd = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
-    // ── Stock movements within the selected month ────────────────────────────
     const stockInAgg = await Transaction.aggregate([
       {
         $match: {
@@ -413,9 +726,6 @@ export const generateMonthlyInventoryReport = async (req, res) => {
       { $group: { _id: "$sparePart", total: { $sum: "$quantity" } } },
     ]);
 
-    // ── Net movements AFTER the selected month (to back-calculate from current qty) ──
-    // This gives us the correct ending balance for the selected month regardless
-    // of when the report is generated.
     const netAfterAgg = await Transaction.aggregate([
       {
         $match: {
@@ -432,16 +742,10 @@ export const generateMonthlyInventoryReport = async (req, res) => {
                 {
                   $or: [
                     { $eq: ["$type", "stockIn"] },
-                    {
-                      $and: [
-                        { $eq: ["$type", "adjustment"] },
-                        { $eq: ["$adjustmentType", "increase"] },
-                      ],
-                    },
+                    { $and: [{ $eq: ["$type", "adjustment"] }, { $eq: ["$adjustmentType", "increase"] }] },
                   ],
                 },
-                "$quantity",
-                0,
+                "$quantity", 0,
               ],
             },
           },
@@ -451,16 +755,10 @@ export const generateMonthlyInventoryReport = async (req, res) => {
                 {
                   $or: [
                     { $eq: ["$type", "stockOut"] },
-                    {
-                      $and: [
-                        { $eq: ["$type", "adjustment"] },
-                        { $eq: ["$adjustmentType", "decrease"] },
-                      ],
-                    },
+                    { $and: [{ $eq: ["$type", "adjustment"] }, { $eq: ["$adjustmentType", "decrease"] }] },
                   ],
                 },
-                "$quantity",
-                0,
+                "$quantity", 0,
               ],
             },
           },
@@ -468,21 +766,31 @@ export const generateMonthlyInventoryReport = async (req, res) => {
       },
     ]);
 
-    const stockInMap = {};
-    stockInAgg.forEach((r) => { if (r._id) stockInMap[r._id.toString()] = r.total; });
-
+    const stockInMap  = {};
     const stockOutMap = {};
-    stockOutAgg.forEach((r) => { if (r._id) stockOutMap[r._id.toString()] = r.total; });
-
-    // netAfter = movements that happened strictly after the selected month
-    // ending(selected month) = currentQty - netIn_after + netOut_after
     const netAfterMap = {};
-    netAfterAgg.forEach((r) => {
-      if (r._id) netAfterMap[r._id.toString()] = r.netIn - r.netOut;
-    });
+    stockInAgg.forEach((r)  => { if (r._id) stockInMap[r._id.toString()]  = r.total; });
+    stockOutAgg.forEach((r) => { if (r._id) stockOutMap[r._id.toString()] = r.total; });
+    netAfterAgg.forEach((r) => { if (r._id) netAfterMap[r._id.toString()] = r.netIn - r.netOut; });
 
     const partQuery = { status: { $ne: "archived" } };
     if (category) partQuery.category = category;
+
+    const activePartIds = [...new Set([...Object.keys(stockInMap), ...Object.keys(stockOutMap)])];
+
+    if (activePartIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          month,
+          monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+          categories: [],
+          generatedAt: new Date(),
+        },
+      });
+    }
+
+    partQuery._id = { $in: activePartIds };
 
     const parts = await SparePart.find(partQuery)
       .populate("category", "name")
@@ -491,43 +799,28 @@ export const generateMonthlyInventoryReport = async (req, res) => {
     const categoryMap = new Map();
 
     parts.forEach((part) => {
-      const categoryName = part.category?.name || "Uncategorized";
-      const id = part._id.toString();
-
-      const monthStockIn = stockInMap[id] || 0;
+      const categoryName  = part.category?.name || "Uncategorized";
+      const id            = part._id.toString();
+      const monthStockIn  = stockInMap[id]  || 0;
       const monthStockOut = stockOutMap[id] || 0;
-      const netAfter = netAfterMap[id] || 0;
-
-      // ending = what the quantity was at the end of the selected month
-      const ending = Math.max(0, Number(part.quantity || 0) - netAfter);
-      // beginning = ending before this month's movements were applied
-      const beginning = Math.max(0, ending - monthStockIn + monthStockOut);
+      const netAfter      = netAfterMap[id] || 0;
+      const ending        = Math.max(0, Number(part.quantity || 0) - netAfter);
+      const beginning     = Math.max(0, ending - monthStockIn + monthStockOut);
 
       if (!categoryMap.has(categoryName)) {
         categoryMap.set(categoryName, { category: categoryName, items: [] });
       }
-
       categoryMap.get(categoryName).items.push({
-        part: part.name,
-        unit: "pcs",
-        beginning,
-        stockIn: monthStockIn,
-        stockOut: monthStockOut,
-        ending,
+        part: part.name, unit: "pcs", beginning, stockIn: monthStockIn, stockOut: monthStockOut, ending,
       });
     });
-
-    const categories = Array.from(categoryMap.values());
 
     res.status(200).json({
       success: true,
       data: {
         month,
-        monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        }),
-        categories,
+        monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+        categories: Array.from(categoryMap.values()),
         generatedAt: new Date(),
       },
     });
@@ -542,19 +835,14 @@ export const getMonthlyTransactionsReport = async (req, res) => {
     const { month } = req.query;
 
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return res.status(400).json({
-        success: false,
-        message: "A valid month in YYYY-MM format is required",
-      });
+      return res.status(400).json({ success: false, message: "A valid month in YYYY-MM format is required" });
     }
 
     const [year, monthNum] = month.split("-").map(Number);
     const monthStart = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    const monthEnd   = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
-    const transactions = await Transaction.find({
-      date: { $gte: monthStart, $lte: monthEnd },
-    })
+    const transactions = await Transaction.find({ date: { $gte: monthStart, $lte: monthEnd } })
       .sort({ date: 1 })
       .populate({ path: "sparePart", select: "name sku category", populate: { path: "category", select: "name" } })
       .populate("consumable", "name unit")
@@ -562,21 +850,14 @@ export const getMonthlyTransactionsReport = async (req, res) => {
       .lean();
 
     const TYPE_LABEL = {
-      stockIn: "STOCK IN",
-      stockOut: "STOCK OUT",
-      adjustment: "ADJUSTMENT",
-      borrowTool: "BORROW",
-      returnTool: "RETURN",
-      consumableRelease: "RELEASE",
-      consumableStockIn: "STOCK IN",
-      consumableAdjustment: "ADJUSTMENT",
+      stockIn: "STOCK IN", stockOut: "STOCK OUT", adjustment: "ADJUSTMENT",
+      borrowTool: "BORROW", returnTool: "RETURN",
+      consumableRelease: "RELEASE", consumableStockIn: "STOCK IN", consumableAdjustment: "ADJUSTMENT",
     };
 
     const rows = transactions.map((tx) => {
       let itemName = "";
       let category = "";
-      let itemType = tx.itemType;
-
       if (tx.itemType === "sparePart" && tx.sparePart) {
         itemName = tx.sparePart.name || "";
         category = tx.sparePart.category?.name || "Uncategorized";
@@ -587,19 +868,12 @@ export const getMonthlyTransactionsReport = async (req, res) => {
         itemName = tx.tool.name || "";
         category = "Tools";
       }
-
       return {
-        date: tx.date,
-        category,
-        itemType,
-        item: itemName,
-        type: TYPE_LABEL[tx.type] || tx.type,
-        quantity: tx.quantity,
+        date: tx.date, category, itemType: tx.itemType, item: itemName,
+        type: TYPE_LABEL[tx.type] || tx.type, quantity: tx.quantity,
         balanceAfter: tx.balanceAfter ?? null,
         employeeName: tx.employeeName || tx.receivedBy || tx.releasedBy || "",
-        department: tx.department || "",
-        machine: tx.machine || "",
-        remarks: tx.remarks || "",
+        department: tx.department || "", machine: tx.machine || "", remarks: tx.remarks || "",
       };
     });
 
@@ -607,13 +881,8 @@ export const getMonthlyTransactionsReport = async (req, res) => {
       success: true,
       data: {
         month,
-        monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        }),
-        rows,
-        total: rows.length,
-        generatedAt: new Date(),
+        monthLabel: new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+        rows, total: rows.length, generatedAt: new Date(),
       },
     });
   } catch (error) {
@@ -624,17 +893,14 @@ export const getMonthlyTransactionsReport = async (req, res) => {
 
 export const getInventorySummaryReportData = async (req, res) => {
   try {
-    const [totalParts, totalCats, totalConsumables, totalTools, totalBorrowed, lowStock, outOfStock] = await Promise.all([
+    const [totalParts, totalCats, totalConsumables, totalBorrowed, lowStock, outOfStock] = await Promise.all([
       SparePart.countDocuments({ status: "active" }),
       Category.countDocuments({ status: "active" }),
       Consumable.countDocuments({ status: "active" }),
-      (await ToolInventory.aggregate([{ $match: { status: { $in: ["available", "borrowed", "maintenance"] } } }, { $group: { _id: null, total: { $sum: "$totalQuantity" } } }]))[0]?.total || 0,
       BorrowedTool.countDocuments({ status: { $in: ["borrowed", "overdue"] } }),
       SparePart.countDocuments({
         status: "active",
-        $expr: {
-          $and: [{ $gt: ["$quantity", 0] }, { $lte: ["$quantity", "$minStockLevel"] }],
-        },
+        $expr: { $and: [{ $gt: ["$quantity", 0] }, { $lte: ["$quantity", "$minStockLevel"] }] },
       }),
       SparePart.countDocuments({ status: "active", quantity: 0 }),
     ]);
@@ -647,15 +913,9 @@ export const getInventorySummaryReportData = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        totalSpareParts: totalParts,
-        totalCategories: totalCats,
-        totalConsumables,
-        totalTools,
-        totalBorrowedTools: totalBorrowed,
-        lowStockItems: lowStock,
-        outOfStockItems: outOfStock,
-        totalInventoryValue: partValue[0]?.total || 0,
-        generatedAt: new Date(),
+        totalSpareParts: totalParts, totalCategories: totalCats, totalConsumables,
+        totalBorrowedTools: totalBorrowed, lowStockItems: lowStock, outOfStockItems: outOfStock,
+        totalInventoryValue: partValue[0]?.total || 0, generatedAt: new Date(),
       },
     });
   } catch (error) {

@@ -67,6 +67,24 @@ export const createTool = async (req, res) => {
       purchasePrice,
       status: status || "available",
       remarks,
+      documentation: {
+        manual: {
+          hasDocument: documentation?.manual?.hasDocument ?? false,
+          title: documentation?.manual?.title,
+          reference: documentation?.manual?.reference,
+        },
+        serviceManual: {
+          hasDocument: documentation?.serviceManual?.hasDocument ?? false,
+          title: documentation?.serviceManual?.title,
+          reference: documentation?.serviceManual?.reference,
+        },
+        operatingGuide: {
+          hasDocument: documentation?.operatingGuide?.hasDocument ?? false,
+          title: documentation?.operatingGuide?.title,
+          reference: documentation?.operatingGuide?.reference,
+        },
+        otherDocuments: documentation?.otherDocuments || [],
+      },
     });
 
     res.status(201).json({
@@ -243,6 +261,7 @@ export const updateTool = async (req, res) => {
       purchasePrice,
       status,
       remarks,
+      documentation,
     } = req.body;
 
     let tool = await ToolInventory.findById(req.params.id);
@@ -290,6 +309,24 @@ export const updateTool = async (req, res) => {
     if (purchasePrice !== undefined) updateData.purchasePrice = purchasePrice;
     if (status !== undefined) updateData.status = status;
     if (remarks !== undefined) updateData.remarks = remarks;
+    if (documentation !== undefined) updateData.documentation = {
+      manual: documentation?.manual || {
+        hasDocument: false,
+        title: undefined,
+        reference: undefined,
+      },
+      serviceManual: documentation?.serviceManual || {
+        hasDocument: false,
+        title: undefined,
+        reference: undefined,
+      },
+      operatingGuide: documentation?.operatingGuide || {
+        hasDocument: false,
+        title: undefined,
+        reference: undefined,
+      },
+      otherDocuments: documentation?.otherDocuments || [],
+    };
 
     tool = await ToolInventory.findByIdAndUpdate(
       req.params.id,

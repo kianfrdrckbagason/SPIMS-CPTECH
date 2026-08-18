@@ -15,13 +15,14 @@ export const createConsumable = async (req, res) => {
   }
 
   try {
-    const { name, unit, quantity, status } = req.body;
+    const { name, unit, quantity, status, movementClassification } = req.body;
 
     const consumable = await Consumable.create({
       name,
       unit,
       quantity: quantity ?? 0,
       status: status || "active",
+      movementClassification: movementClassification || "medium",
     });
 
     res.status(201).json({
@@ -149,7 +150,7 @@ export const updateConsumable = async (req, res) => {
   }
 
   try {
-    const { name, unit, quantity, status } = req.body;
+    const { name, unit, quantity, status, movementClassification } = req.body;
 
     let consumable = await Consumable.findById(req.params.id);
 
@@ -165,6 +166,7 @@ export const updateConsumable = async (req, res) => {
     if (unit !== undefined) updateData.unit = unit;
     if (quantity !== undefined) updateData.quantity = quantity;
     if (status !== undefined) updateData.status = status;
+    if (movementClassification !== undefined) updateData.movementClassification = movementClassification;
 
     consumable = await Consumable.findByIdAndUpdate(
       req.params.id,

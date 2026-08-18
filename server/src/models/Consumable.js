@@ -41,17 +41,52 @@ const consumableSchema = new mongoose.Schema(
       enum: ["active", "inactive", "discontinued"],
       default: "active",
     },
+    movementClassification: {
+      type: String,
+      enum: ["fast", "medium", "low"],
+      default: "medium",
+    },
   },
   {
     timestamps: true,
   }
 );
 
+// Movement classification thresholds
+const MOVEMENT_THRESHOLDS = {
+  fast: { good: 10, low: 1, out: 0 },
+  medium: { good: 5, low: 1, out: 0 },
+  low: { good: 1, low: 0, out: 0 },
+};
+
 consumableSchema.virtual("stockStatus").get(function () {
-  if (this.quantity <= 0) return "red";
-  if (this.quantity <= this.minStockLevel) return "orange";
+  // Use the thresholds defined in the controller for consistency
+  const MOVEMENT_THRESHOLDS = {
+    fast: { good: 10, low: 1, out: 0 },
+    medium: { good: 5, low: 1, out: 0 },
+    low: { good: 1, low: 0, out: 0 },
+  };
+  const thresholds = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
+  
+  if (this.quantity <= thresholds.out) return "red";
+  if (this.quantity <= thresholds.low) return "orange";
   return "green";
 });
+
+consumableSchema.methods.getStockStatusLabel = function () {
+  // Use the thresholds defined in the controller for consistency
+  const MOVEMENT_THRESHOLDS = {
+    fast: { good: 10, low: 1, out: 0 },
+    medium: { good: 5, low: 1, out: 0 },
+    low: { good: 1, low: 0, out: 0 },
+  };
+  const thresholds = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
+  
+  if (this.quantity <= thresholds.out) return "OUT";
+  if (this.quantity <= thresholds.low) return "LOW";
+  if (this.quantity <= thresholds.good) return "GOOD";
+  return "GOOD";
+};
 
 consumableSchema.set("toJSON", { virtuals: true });
 consumableSchema.set("toObject", { virtuals: true });

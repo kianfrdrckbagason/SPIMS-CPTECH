@@ -85,6 +85,33 @@ const toolInventorySchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, "Remarks cannot exceed 500 characters"],
     },
+    documentation: {
+      manual: {
+        hasDocument: { type: Boolean, default: false },
+        title: { type: String, maxlength: [200, "Title cannot exceed 200 characters"] },
+        reference: { type: String, maxlength: [200, "Reference cannot exceed 200 characters"] },
+      },
+      serviceManual: {
+        hasDocument: { type: Boolean, default: false },
+        title: { type: String, maxlength: [200, "Title cannot exceed 200 characters"] },
+        reference: { type: String, maxlength: [200, "Reference cannot exceed 200 characters"] },
+      },
+      operatingGuide: {
+        hasDocument: { type: Boolean, default: false },
+        title: { type: String, maxlength: [200, "Title cannot exceed 200 characters"] },
+        reference: { type: String, maxlength: [200, "Reference cannot exceed 200 characters"] },
+      },
+      otherDocuments: {
+        type: [
+          {
+            type: { type: String, enum: ["pdf", "jpg", "png", "doc", "docx"], required: true },
+            title: { type: String, required: true, maxlength: 200 },
+            reference: { type: String, maxlength: 200 },
+          },
+        ],
+        default: [],
+      },
+    },
   },
   {
     timestamps: true,

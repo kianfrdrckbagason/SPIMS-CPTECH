@@ -26,3 +26,10 @@ export const deleteTransaction = async (id) => {
   const response = await api.delete(`${BASE_PATH}/${id}`);
   return response.data;
 };
+
+// Monthly Excel-style inventory sheet
+// params: { month, year, itemType, category }
+export const getMonthlySheet = async (params) => {
+  const response = await api.get(`${BASE_PATH}/monthly-sheet`, { params });
+  return response.data;
+};

@@ -17,6 +17,7 @@ const StatCard = ({
   color = 'primary',
   trend,
   subtitle,
+  onClick,
 }) => {
   const getColorValue = (c) => {
     const map = {
@@ -33,7 +34,15 @@ const StatCard = ({
   const bgColor = getColorValue(color);
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card
+      sx={{
+        height: '100%',
+        cursor: onClick ? 'pointer' : 'default',
+        '&:hover': onClick ? { boxShadow: 3, transform: 'translateY(-2px)' } : {},
+        transition: onClick ? 'all 0.2s ease-in-out' : 'none',
+      }}
+      onClick={onClick}
+    >
       <CardContent sx={{ p: 2.5 }}>
         <Grid container alignItems="center" spacing={2}>
           <Grid item xs="auto">

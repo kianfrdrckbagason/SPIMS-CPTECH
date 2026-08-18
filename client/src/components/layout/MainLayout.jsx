@@ -32,6 +32,7 @@ import {
   FaChevronUp,
   FaCogs,
   FaClipboardCheck,
+  FaExchangeAlt,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -84,6 +85,7 @@ const MainLayout = () => {
   ];
 
   const others = [
+    { label: 'Transactions', path: '/transactions', icon: <FaExchangeAlt /> },
     { label: 'Reports', path: '/reports', icon: <FaChartBar /> },
     { label: 'Inventory Recount', path: '/inventory-recount', icon: <FaClipboardCheck /> },
   ];

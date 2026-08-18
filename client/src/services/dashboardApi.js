@@ -33,3 +33,41 @@ export const getAdminSummary = async () => {
   const response = await api.get('/dashboard/admin-summary');
   return response.data.data;
 };
+
+export const getLowStockItems = async () => {
+  const response = await api.get('/dashboard/low-stock-items');
+  return response.data.data;
+};
+
+export const getOutOfStockItems = async () => {
+  const response = await api.get('/dashboard/out-of-stock-items');
+  return response.data.data;
+};
+
+export const getStockInHistory = async (limit) => {
+  const response = await api.get('/dashboard/stock-in-history', {
+    params: limit ? { limit } : undefined,
+  });
+  return response.data.data;
+};
+
+export const getStockOutHistory = async (limit) => {
+  const response = await api.get('/dashboard/stock-out-history', {
+    params: limit ? { limit } : undefined,
+  });
+  return response.data.data;
+};
+
+export const getCurrentMonthStockInHistory = async (limit = 50) => {
+  const response = await api.get('/dashboard/stock-in-history', {
+    params: { limit, currentMonth: 'true' },
+  });
+  return response.data.data;
+};
+
+export const getCurrentMonthStockOutHistory = async (limit = 50) => {
+  const response = await api.get('/dashboard/stock-out-history', {
+    params: { limit, currentMonth: 'true' },
+  });
+  return response.data.data;
+};

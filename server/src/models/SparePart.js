@@ -73,17 +73,57 @@ const sparePartSchema = new mongoose.Schema(
       enum: ["active", "inactive", "discontinued", "archived"],
       default: "active",
     },
+    movementClassification: {
+      type: String,
+      enum: ["fast", "medium", "low"],
+      default: "medium",
+    },
+    sortOrder: {
+      type: Number,
+      default: 0,
+      min: [0, "Sort order cannot be negative"],
+    },
   },
   {
     timestamps: true,
   }
 );
 
+// Movement classification thresholds
+const MOVEMENT_THRESHOLDS = {
+  fast: { good: 10, low: 1, out: 0 },
+  medium: { good: 5, low: 1, out: 0 },
+  low: { good: 1, low: 0, out: 0 },
+};
+
 sparePartSchema.virtual("stockStatus").get(function () {
-  if (this.quantity <= 0) return "red";
-  if (this.quantity <= this.minStockLevel) return "orange";
+  // Use the thresholds defined in the controller for consistency
+  const MOVEMENT_THRESHOLDS = {
+    fast: { good: 10, low: 1, out: 0 },
+    medium: { good: 5, low: 1, out: 0 },
+    low: { good: 1, low: 0, out: 0 },
+  };
+  const thresholds = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
+  
+  if (this.quantity <= thresholds.out) return "red";
+  if (this.quantity <= thresholds.low) return "orange";
   return "green";
 });
+
+sparePartSchema.methods.getStockStatusLabel = function () {
+  // Use the thresholds defined in the controller for consistency
+  const MOVEMENT_THRESHOLDS = {
+    fast: { good: 10, low: 1, out: 0 },
+    medium: { good: 5, low: 1, out: 0 },
+    low: { good: 1, low: 0, out: 0 },
+  };
+  const thresholds = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
+  
+  if (this.quantity <= thresholds.out) return "OUT";
+  if (this.quantity <= thresholds.low) return "LOW";
+  if (this.quantity <= thresholds.good) return "GOOD";
+  return "GOOD";
+};
 
 sparePartSchema.set("toJSON", { virtuals: true });
 sparePartSchema.set("toObject", { virtuals: true });
@@ -91,6 +131,7 @@ sparePartSchema.set("toObject", { virtuals: true });
 sparePartSchema.index({ name: "text", sku: "text", description: "text", machine: "text" });
 sparePartSchema.index({ category: 1, status: 1 });
 sparePartSchema.index({ quantity: 1, minStockLevel: 1 });
+sparePartSchema.index({ sortOrder: 1 });
 
 const SparePart = mongoose.model("SparePart", sparePartSchema);
 
