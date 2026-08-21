@@ -32,7 +32,6 @@ import {
 import {
   FaFileExcel,
   FaFilePdf,
-  FaSearch,
   FaTable,
   FaCalendarAlt,
 } from 'react-icons/fa';
@@ -274,7 +273,7 @@ const TransactionsPage = () => {
   useEffect(() => {
     if (view === 'monthly') fetchMonthlySheet();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, sheetMonth, sheetYear, sheetItemType, sheetCategory]);
 
   // ── export — always uses the live (currently active) filter state ──────────
   const handleExport = async (format) => {
@@ -451,7 +450,7 @@ const TransactionsPage = () => {
             <TableHead>
               <TableRow>
                 {[
-                  'Date & Time','Type','Item Type','Item Name / SKU',
+                  'Date & Time','Type','Item Type','Item Name',
                   'Qty','Balance After','Employee / Dept',
                   'Machine','Received / Released By','User','Remarks',
                 ].map((h) => (
@@ -498,7 +497,6 @@ const TransactionsPage = () => {
                     </TableCell>
                     <TableCell sx={{ minWidth: 160 }}>
                       <Typography variant="body2" fontWeight={500} noWrap>{name}</Typography>
-                      {sku && <Typography variant="caption" color="text.secondary">{sku}</Typography>}
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" fontWeight={700} sx={{ color: qtyColor }}>
@@ -601,15 +599,6 @@ const TransactionsPage = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} md={3}>
-                <Button
-                  variant="contained" startIcon={<FaSearch />}
-                  disabled={sheetLoading} fullWidth
-                  onClick={fetchMonthlySheet}
-                >
-                  {sheetLoading ? 'Loading…' : 'Generate Sheet'}
-                </Button>
-              </Grid>
             </Grid>
           </CardContent>
         </Card>
@@ -629,14 +618,14 @@ const TransactionsPage = () => {
           {!sheetLoading && !sheetData && (
             <Box sx={{ py: 8, textAlign: 'center' }}>
               <Typography variant="h6" color="text.secondary">
-                Select a month and click "Generate Sheet"
+                Loading inventory sheet…
               </Typography>
             </Box>
           )}
 
           {!sheetLoading && sheetData && rows.length === 0 && (
             <Box sx={{ py: 8, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary">No inventory movements found for {monthLabel}</Typography>
+              <Typography variant="h6" color="text.secondary">No inventory found for {monthLabel}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 No transactions exist for this period.
               </Typography>
@@ -680,12 +669,11 @@ const TransactionsPage = () => {
                         <TableRow key={`${row.partId}-name`}>
                           <TableCell align="center" rowSpan={SUB_ROWS.length + 1}
                             sx={{ ...sheetCellSx, fontWeight: 700, bgcolor: '#f0f4ff', position: 'sticky', left: 0, zIndex: 2, borderRight: '1px solid #c5cae9', verticalAlign: 'middle' }}>
-                            {rowIdx + 1}
+                            {row.sortOrder}
                           </TableCell>
                           <TableCell colSpan={2 + daysInMonth + 1}
                             sx={{ ...sheetCellSx, fontWeight: 700, bgcolor: '#e8eaf6', color: '#1a237e', fontSize: '0.78rem', position: 'sticky', left: 36, zIndex: 2 }}>
                             {row.partName}
-                            {row.sku && <Typography component="span" sx={{ ml: 1, fontWeight: 400, fontSize: '0.68rem', color: '#555' }}>[{row.sku}]</Typography>}
                             {row.categoryName && <Typography component="span" sx={{ ml: 1, fontWeight: 400, fontSize: '0.68rem', color: '#777' }}>— {row.categoryName}</Typography>}
                           </TableCell>
                         </TableRow>

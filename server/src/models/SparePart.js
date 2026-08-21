@@ -90,38 +90,26 @@ const sparePartSchema = new mongoose.Schema(
 );
 
 // Movement classification thresholds
+// Fast:   qty >= 10 = Normal, qty 1-9  = Low, qty 0 = Out
+// Medium: qty >= 5  = Normal, qty 1-4  = Low, qty 0 = Out
+// Low:    qty >= 2  = Normal, qty 1    = Low, qty 0 = Out
 const MOVEMENT_THRESHOLDS = {
-  fast: { good: 10, low: 1, out: 0 },
-  medium: { good: 5, low: 1, out: 0 },
-  low: { good: 1, low: 0, out: 0 },
+  fast:   { normal: 10, low: 9,  out: 0 },
+  medium: { normal: 5,  low: 4,  out: 0 },
+  low:    { normal: 2,  low: 1,  out: 0 },
 };
 
 sparePartSchema.virtual("stockStatus").get(function () {
-  // Use the thresholds defined in the controller for consistency
-  const MOVEMENT_THRESHOLDS = {
-    fast: { good: 10, low: 1, out: 0 },
-    medium: { good: 5, low: 1, out: 0 },
-    low: { good: 1, low: 0, out: 0 },
-  };
-  const thresholds = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
-  
-  if (this.quantity <= thresholds.out) return "red";
-  if (this.quantity <= thresholds.low) return "orange";
+  const t = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
+  if (this.quantity <= t.out) return "red";
+  if (this.quantity <= t.low) return "orange";
   return "green";
 });
 
 sparePartSchema.methods.getStockStatusLabel = function () {
-  // Use the thresholds defined in the controller for consistency
-  const MOVEMENT_THRESHOLDS = {
-    fast: { good: 10, low: 1, out: 0 },
-    medium: { good: 5, low: 1, out: 0 },
-    low: { good: 1, low: 0, out: 0 },
-  };
-  const thresholds = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
-  
-  if (this.quantity <= thresholds.out) return "OUT";
-  if (this.quantity <= thresholds.low) return "LOW";
-  if (this.quantity <= thresholds.good) return "GOOD";
+  const t = MOVEMENT_THRESHOLDS[this.movementClassification || "medium"] || MOVEMENT_THRESHOLDS.medium;
+  if (this.quantity <= t.out) return "OUT";
+  if (this.quantity <= t.low) return "LOW";
   return "GOOD";
 };
 

@@ -159,27 +159,25 @@ export const getSpareParts = async (req, res) => {
     }
 
     // ── Stock status filter (mirrors client-side getStockStatusInfo logic) ──────
-    // Thresholds: fast → low=1, medium → low=1, low → low=0 (no low band)
+    // Thresholds: fast → normal≥10 / low 1-9, medium → normal≥5 / low 1-4, low → normal≥2 / low=1
     // Missing/null movementClassification defaults to medium behaviour.
     if (stockStatus === "out") {
       query.quantity = 0;
     } else if (stockStatus === "low") {
-      // qty = 1 AND classification is fast, medium, or absent (all treated as medium)
-      query.quantity = 1;
       query.$or = [
-        { movementClassification: { $in: ["fast", "medium"] } },
-        { movementClassification: { $exists: false } },
-        { movementClassification: null },
+        { movementClassification: "fast",   quantity: { $gt: 0, $lte: 9 } },
+        { movementClassification: "medium", quantity: { $gt: 0, $lte: 4 } },
+        { movementClassification: "low",    quantity: { $gt: 0, $lte: 1 } },
+        { movementClassification: { $exists: false }, quantity: { $gt: 0, $lte: 4 } },
+        { movementClassification: null,               quantity: { $gt: 0, $lte: 4 } },
       ];
     } else if (stockStatus === "good") {
-      // qty ≥ 1 but NOT in the "low" band:
-      //   fast/medium/absent: qty ≥ 2
-      //   low classification: qty ≥ 1 (no low band)
       query.$or = [
-        { movementClassification: { $in: ["fast", "medium"] }, quantity: { $gte: 2 } },
-        { movementClassification: { $exists: false }, quantity: { $gte: 2 } },
-        { movementClassification: null, quantity: { $gte: 2 } },
-        { movementClassification: "low", quantity: { $gte: 1 } },
+        { movementClassification: "fast",   quantity: { $gte: 10 } },
+        { movementClassification: "medium", quantity: { $gte: 5  } },
+        { movementClassification: "low",    quantity: { $gte: 2  } },
+        { movementClassification: { $exists: false }, quantity: { $gte: 5 } },
+        { movementClassification: null,               quantity: { $gte: 5 } },
       ];
     }
 

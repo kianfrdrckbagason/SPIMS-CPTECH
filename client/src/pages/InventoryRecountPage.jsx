@@ -53,7 +53,14 @@ const RecountList = ({ onOpen, onNew, isAdmin }) => {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        flexWrap="wrap"
+        gap={1}
+        mb={3}
+      >
         <Box>
           <Typography variant="h4" fontWeight={700}>Inventory Recount</Typography>
           <Typography variant="body1" color="text.secondary">
@@ -61,7 +68,7 @@ const RecountList = ({ onOpen, onNew, isAdmin }) => {
           </Typography>
         </Box>
         {isAdmin && (
-          <Button variant="contained" startIcon={<FaPlus />} onClick={onNew}>
+          <Button variant="contained" size="small" startIcon={<FaPlus />} onClick={onNew}>
             New Recount
           </Button>
         )}

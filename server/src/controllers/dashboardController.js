@@ -53,37 +53,20 @@ export const getDashboardStats = async (req, res) => {
     const todayEnd = endOfDay();
 
     // Movement-classification-aware low-stock count.
-    // Must exactly match the client-side getStockStatusInfo() logic in SparePartsPage.jsx:
-    //
-    //   const t = MOVEMENT_THRESHOLDS[movementClassification] || MOVEMENT_THRESHOLDS.medium
-    //   if (qty <= t.out) → "out"        (out = 0 for all classifications)
-    //   if (qty <= t.low) → "low"        (low = 1 for fast/medium, 0 for "low")
-    //   else              → "good"
-    //
-    // Therefore "low stock" means:  quantity > 0  AND  quantity <= 1
-    //   … for fast  classification (t.low = 1)
-    //   … for medium classification (t.low = 1)
-    //   … for null/undefined field  (defaults to medium → t.low = 1)
-    //
-    // "low" classification has t.low = 0, same as t.out = 0,
-    // so the qty <= t.low check can never fire after qty <= t.out is ruled out → never "low".
-    //
-    // Bottom line: low stock ≡  quantity = 1  AND  classification ≠ "low"
-    const lowStockQuery = {
+    // Thresholds (per business spec):
+    //   fast:   qty >= 10 = Normal, qty 1-9  = Low, qty 0 = Out
+    //   medium: qty >= 5  = Normal, qty 1-4  = Low, qty 0 = Out
+    //   low:    qty >= 2  = Normal, qty 1    = Low, qty 0 = Out
+    //   null/missing → defaults to medium behaviour
+    const lowStockFilter = {
       status: "active",
-      quantity: 1,                                   // strictly equal — qty=0 is out, qty≥2 is good
-      movementClassification: { $in: ["fast", "medium"] },  // "low" classification has no low band
-    };
-    // Also count documents where movementClassification is absent — treated as "medium" by the client
-    const lowStockQueryMissingField = {
-      status: "active",
-      quantity: 1,
-      movementClassification: { $exists: false },
-    };
-    const lowStockQueryNullField = {
-      status: "active",
-      quantity: 1,
-      movementClassification: null,
+      $or: [
+        { movementClassification: "fast",   quantity: { $gt: 0, $lte: 9 } },
+        { movementClassification: "medium", quantity: { $gt: 0, $lte: 4 } },
+        { movementClassification: "low",    quantity: { $gt: 0, $lte: 1 } },
+        { movementClassification: { $exists: false }, quantity: { $gt: 0, $lte: 4 } },
+        { movementClassification: null,               quantity: { $gt: 0, $lte: 4 } },
+      ],
     };
 
     const [
@@ -107,10 +90,8 @@ export const getDashboardStats = async (req, res) => {
       BorrowedTool.countDocuments({
         borrowDate: { $gte: todayStart, $lte: todayEnd },
       }),
-      // Low stock count: three separate cases merged into one $or query
-      SparePart.countDocuments({
-        $or: [lowStockQuery, lowStockQueryMissingField, lowStockQueryNullField],
-      }),
+      // Low stock count: classification-aware $or query
+      SparePart.countDocuments(lowStockFilter),
       SparePart.countDocuments({ quantity: 0, status: "active" }),
       Transaction.aggregate([
         { $match: { date: { $gte: todayStart, $lte: todayEnd }, type: { $in: ["stockIn", "consumableStockIn"] } } },
@@ -478,9 +459,16 @@ export const getLowStockItems = async (req, res) => {
     }).sort({ quantity: 1 });
 
     // Filter to only include items that are actually low based on their movement classification
-    const LOW_STOCK_THRESHOLDS = { fast: 1, medium: 1, low: 0 };
-    const filteredSpareParts = spareParts.filter(p => p.quantity <= (LOW_STOCK_THRESHOLDS[p.movementClassification || "medium"] || 1));
-    const filteredConsumables = consumables.filter(c => c.quantity <= (LOW_STOCK_THRESHOLDS[c.movementClassification || "medium"] || 1));
+    // fast: qty 1-9, medium: qty 1-4, low: qty 1, null/missing defaults to medium (1-4)
+    const LOW_STOCK_THRESHOLDS = { fast: 9, medium: 4, low: 1 };
+    const filteredSpareParts = spareParts.filter(p => {
+      const threshold = LOW_STOCK_THRESHOLDS[p.movementClassification || "medium"] ?? 4;
+      return p.quantity > 0 && p.quantity <= threshold;
+    });
+    const filteredConsumables = consumables.filter(c => {
+      const threshold = LOW_STOCK_THRESHOLDS[c.movementClassification || "medium"] ?? 4;
+      return c.quantity > 0 && c.quantity <= threshold;
+    });
 
     res.status(200).json({
       success: true,

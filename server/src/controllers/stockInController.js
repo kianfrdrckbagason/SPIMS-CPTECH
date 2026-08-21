@@ -4,17 +4,19 @@ import Transaction from "../models/Transaction.js";
 import Notification from "../models/Notification.js";
 
 // Movement classification thresholds for stock status calculation
+// Fast:   qty >= 10 = Normal, qty 1-9  = Low Stock, qty 0 = Out of Stock
+// Medium: qty >= 5  = Normal, qty 1-4  = Low Stock, qty 0 = Out of Stock
+// Low:    qty >= 2  = Normal, qty 1    = Low Stock, qty 0 = Out of Stock
 const MOVEMENT_THRESHOLDS = {
-  fast: { good: 10, low: 1, out: 0 },
-  medium: { good: 5, low: 1, out: 0 },
-  low: { good: 1, low: 0, out: 0 },
+  fast:   { normal: 10, low: 9,  out: 0 },
+  medium: { normal: 5,  low: 4,  out: 0 },
+  low:    { normal: 2,  low: 1,  out: 0 },
 };
 
 const getStockStatus = (quantity, minStockLevel, movementClassification = "medium") => {
-  const thresholds = MOVEMENT_THRESHOLDS[movementClassification] || MOVEMENT_THRESHOLDS.medium;
-  
-  if (quantity <= thresholds.out) return "red";
-  if (quantity <= thresholds.low) return "orange";
+  const t = MOVEMENT_THRESHOLDS[movementClassification] || MOVEMENT_THRESHOLDS.medium;
+  if (quantity <= t.out) return "red";
+  if (quantity <= t.low) return "orange";
   return "green";
 };
 

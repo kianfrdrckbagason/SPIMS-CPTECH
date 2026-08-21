@@ -49,10 +49,13 @@ import * as sparePartApi from '../services/sparePartApi';
 import * as categoryApi from '../services/categoryApi';
 
 // ── Movement-based stock status ───────────────────────────────────────────────
+// Fast:   qty >= 10 = Normal, qty 1-9  = Low, qty 0 = Out
+// Medium: qty >= 5  = Normal, qty 1-4  = Low, qty 0 = Out
+// Low:    qty >= 2  = Normal, qty 1    = Low, qty 0 = Out
 const MOVEMENT_THRESHOLDS = {
-  fast:   { good: 10, low: 1, out: 0 },
-  medium: { good: 5,  low: 1, out: 0 },
-  low:    { good: 1,  low: 0, out: 0 },
+  fast:   { normal: 10, low: 9,  out: 0 },
+  medium: { normal: 5,  low: 4,  out: 0 },
+  low:    { normal: 2,  low: 1,  out: 0 },
 };
 
 const getStockStatusInfo = (qty, movementClassification = 'medium') => {

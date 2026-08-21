@@ -3,27 +3,21 @@
  *
  * Rules (per business spec):
  *
- *   Classification | Normal (≥) | Low Stock (<) | Out of Stock
- *   ────────────────────────────────────────────────────────────
- *   fast  (Fast Moving)  |   10       |   < 10        |   0
- *   medium (Med Moving)  |    5       |   < 5         |   0
- *   slow  (Slow Moving)  |    2       |   < 2         |   0
+ *   Classification | Normal (≥) | Low Stock      | Out of Stock
+ *   ─────────────────────────────────────────────────────────────
+ *   fast  (Fast Moving)   |  10  |  qty 1–9   (≤ 9)  |  qty = 0
+ *   medium (Med Moving)   |   5  |  qty 1–4   (≤ 4)  |  qty = 0
+ *   low   (Slow Moving)   |   2  |  qty 1     (≤ 1)  |  qty = 0
  *
- * "Low Stock" means: quantity > 0  AND  quantity < threshold.normal
- * "Out of Stock" means: quantity === 0  (all classifications)
- *
- * The `low` field below stores the highest quantity that is still "Low Stock"
- * (i.e. quantity ≤ low means Low Stock, provided quantity > 0).
- *
- *   fast   → low = 9   (qty 1–9   = Low,  qty ≥ 10 = Normal)
- *   medium → low = 4   (qty 1–4   = Low,  qty ≥ 5  = Normal)
- *   slow   → low = 1   (qty 1     = Low,  qty ≥ 2  = Normal)
+ * "Low Stock"    : quantity > 0  AND  quantity <= thresholds.low
+ * "Out of Stock" : quantity === 0  (all classifications)
+ * "Normal"       : quantity >= thresholds.normal
  */
 
 export const MOVEMENT_THRESHOLDS = {
   fast:   { normal: 10, low: 9,  out: 0 },
   medium: { normal: 5,  low: 4,  out: 0 },
-  slow:   { normal: 2,  low: 1,  out: 0 },
+  low:    { normal: 2,  low: 1,  out: 0 },
 };
 
 // Fallback when movementClassification is absent / null / unrecognised
@@ -41,8 +35,8 @@ export const getThresholds = (movementClassification) =>
  * Return the stock colour-code for a quantity + classification combination.
  *
  *   "red"    → Out of Stock  (qty === 0)
- *   "orange" → Low Stock     (0 < qty ≤ thresholds.low)
- *   "green"  → Normal        (qty ≥ thresholds.normal)
+ *   "orange" → Low Stock     (0 < qty <= thresholds.low)
+ *   "green"  → Normal        (qty >= thresholds.normal)
  *
  * @param {number} quantity
  * @param {string} [movementClassification]
@@ -76,18 +70,17 @@ export const getStockStatusLabel = (quantity, movementClassification) => {
  * Low Stock = quantity > 0 AND quantity <= thresholds.low for that classification.
  *
  * @param {string} [statusField="status"]   field name for the lifecycle status
- * @returns {object}  a MongoDB filter object (no outer $or — caller can embed as needed)
+ * @returns {object}  a MongoDB filter object
  */
 export const buildLowStockFilter = (statusField = "status") => ({
   [statusField]: "active",
-  quantity:      { $gt: 0 },
   $or: [
-    // fast: qty 1–9
+    // fast:   qty 1–9
     { movementClassification: "fast",   quantity: { $gt: 0, $lte: MOVEMENT_THRESHOLDS.fast.low   } },
     // medium: qty 1–4
     { movementClassification: "medium", quantity: { $gt: 0, $lte: MOVEMENT_THRESHOLDS.medium.low } },
-    // slow: qty 1 only
-    { movementClassification: "slow",   quantity: { $gt: 0, $lte: MOVEMENT_THRESHOLDS.slow.low   } },
+    // low:    qty 1
+    { movementClassification: "low",    quantity: { $gt: 0, $lte: MOVEMENT_THRESHOLDS.low.low    } },
     // null / missing → treated as medium: qty 1–4
     { movementClassification: { $exists: false }, quantity: { $gt: 0, $lte: MOVEMENT_THRESHOLDS.medium.low } },
     { movementClassification: null,               quantity: { $gt: 0, $lte: MOVEMENT_THRESHOLDS.medium.low } },
