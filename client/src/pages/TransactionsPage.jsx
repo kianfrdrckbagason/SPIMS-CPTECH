@@ -451,8 +451,8 @@ const TransactionsPage = () => {
               <TableRow>
                 {[
                   'Date & Time','Type','Item Type','Item Name',
-                  'Qty','Balance After','Employee / Dept',
-                  'Machine','Received / Released By','User','Remarks',
+                  'Qty','Balance After','Requested By',
+                  'Processed By','Department','Machine','Remarks',
                 ].map((h) => (
                   <TableCell key={h} sx={{ fontWeight: 700, whiteSpace: 'nowrap', bgcolor: 'grey.100' }}>
                     {h}
@@ -507,15 +507,13 @@ const TransactionsPage = () => {
                       {tx.balanceAfter ?? tx.remainingQty ?? tx.newBalance ?? '-'}
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {[tx.employeeName || tx.employee, tx.department].filter(Boolean).join(' / ') || '-'}
+                      {tx.employeeName || tx.employee || '-'}
                     </TableCell>
-                    <TableCell sx={{ fontSize: '0.8rem' }}>{tx.machine || '-'}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {tx.receivedBy || tx.releasedBy || tx.handledBy || '-'}
+                      {tx.releasedBy || tx.receivedBy || tx.processedBy || tx.handledBy || '-'}
                     </TableCell>
-                    <TableCell sx={{ fontSize: '0.8rem' }}>
-                      {tx.user?.fullName || tx.user?.email || tx.createdBy || tx.userName || '-'}
-                    </TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{tx.department || '-'}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{tx.machine || '-'}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', maxWidth: 160 }}>
                       <Tooltip title={tx.remarks || tx.notes || tx.reason || ''}>
                         <Typography variant="body2" noWrap>

@@ -51,7 +51,7 @@ const StockOutPage = () => {
     machine: '',
     sparePartId: '',
     quantity: '',
-    releasedBy: user?.fullName || '',
+    processedBy: '',
     reference: '',
     remarks: '',
   });
@@ -63,7 +63,7 @@ const StockOutPage = () => {
     machine: '',
     consumableId: '',
     quantity: '',
-    releasedBy: user?.fullName || '',
+    processedBy: '',
     reference: '',
     remarks: '',
   });
@@ -171,7 +171,7 @@ const StockOutPage = () => {
     e.preventDefault();
     const qty = parseFloat(spareForm.quantity);
     if (!spareForm.employeeName.trim()) {
-      toast.error('Employee Name is required');
+      toast.error('Requested By is required');
       return;
     }
     if (!spareForm.department.trim()) {
@@ -190,8 +190,8 @@ const StockOutPage = () => {
       toast.error(spareQtyError || 'Invalid quantity');
       return;
     }
-    if (!spareForm.releasedBy.trim()) {
-      toast.error('Released By is required');
+    if (!spareForm.processedBy.trim()) {
+      toast.error('Processed By is required');
       return;
     }
     setSubmitting(true);
@@ -203,7 +203,7 @@ const StockOutPage = () => {
         machine: spareForm.machine || undefined,
         sparePartId: spareForm.sparePartId,
         quantity: qty,
-        releasedBy: spareForm.releasedBy,
+        releasedBy: spareForm.processedBy,
         reference: spareForm.reference || undefined,
         remarks: spareForm.remarks || undefined,
       };
@@ -218,7 +218,7 @@ const StockOutPage = () => {
           machine: '',
           sparePartId: '',
           quantity: '',
-          releasedBy: user?.fullName || '',
+          processedBy: '',
           reference: '',
           remarks: '',
         });
@@ -237,7 +237,7 @@ const StockOutPage = () => {
     e.preventDefault();
     const qty = parseFloat(consumableForm.quantity);
     if (!consumableForm.employeeName.trim()) {
-      toast.error('Employee Name is required');
+      toast.error('Requested By is required');
       return;
     }
     if (!consumableForm.department.trim()) {
@@ -256,8 +256,8 @@ const StockOutPage = () => {
       toast.error(consumableQtyError || 'Invalid quantity');
       return;
     }
-    if (!consumableForm.releasedBy.trim()) {
-      toast.error('Released By is required');
+    if (!consumableForm.processedBy.trim()) {
+      toast.error('Processed By is required');
       return;
     }
     setSubmitting(true);
@@ -269,14 +269,14 @@ const StockOutPage = () => {
         machine: consumableForm.machine || undefined,
         consumableId: consumableForm.consumableId,
         quantity: qty,
-        releasedBy: consumableForm.releasedBy,
+        releasedBy: consumableForm.processedBy,
         reference: consumableForm.reference || undefined,
         remarks: consumableForm.remarks || undefined,
       };
       const response = await stockApi.consumableRelease(payload);
       if (response.success) {
         const newBalance = response.data?.newBalance ?? response.data?.quantity ?? (selectedConsumable?.quantity || 0) - qty;
-        toast.success(`Consumable Release recorded. New balance: ${newBalance}`);
+        toast.success(`Stock Out recorded. New balance: ${newBalance}`);
         setConsumableForm({
           date: today,
           employeeName: '',
@@ -284,16 +284,16 @@ const StockOutPage = () => {
           machine: '',
           consumableId: '',
           quantity: '',
-          releasedBy: user?.fullName || '',
+          processedBy: '',
           reference: '',
           remarks: '',
         });
         fetchMovements();
       } else {
-        toast.error(response.message || 'Failed to record release');
+        toast.error(response.message || 'Failed to record stock out');
       }
     } catch (error) {
-      toast.error(error.message || 'Failed to record release');
+      toast.error(error.message || 'Failed to record stock out');
     } finally {
       setSubmitting(false);
     }
@@ -319,7 +319,7 @@ const StockOutPage = () => {
               <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Item</TableCell>
               <TableCell sx={{ fontWeight: 600, align: 'right' }}>Qty</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Released By</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Processed By</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Reference</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Remarks</TableCell>
             </TableRow>
@@ -338,7 +338,7 @@ const StockOutPage = () => {
                   </TableCell>
                   <TableCell>{m.item || m.itemName || m.sparePart?.name || m.consumable?.name || m.name || '-'}</TableCell>
                   <TableCell align="right">{m.quantity ?? '-'}</TableCell>
-                  <TableCell>{m.releasedBy || m.user || m.userName || '-'}</TableCell>
+                  <TableCell>{m.releasedBy || m.processedBy || '-'}</TableCell>
                   <TableCell>{m.reference || '-'}</TableCell>
                   <TableCell>{m.remarks || '-'}</TableCell>
                 </TableRow>
@@ -354,18 +354,18 @@ const StockOutPage = () => {
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" component="h1" fontWeight={700} gutterBottom>
-          Stock Out - Release Inventory
+          Stock Out
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Record inventory releases for spare parts and consumables.
+          Record inventory withdrawals for spare parts and consumables.
         </Typography>
       </Box>
 
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 3 }}>
-            <Tab label="Spare Parts Release" />
-            <Tab label="Consumables Release" />
+            <Tab label="Spare Parts Stock Out" />
+            <Tab label="Consumables Stock Out" />
           </Tabs>
 
           {tabValue === 0 && (
@@ -385,12 +385,13 @@ const StockOutPage = () => {
                     InputLabelProps={{ shrink: true }}
                   />
                   <TextField
-                    label="Employee Name"
+                    label="Requested By"
                     value={spareForm.employeeName}
                     onChange={(e) => setSpareForm({ ...spareForm, employeeName: e.target.value })}
                     fullWidth
                     required
                     disabled={submitting}
+                    helperText="Name of the person who requested this part"
                   />
                   <TextField
                     label="Department"
@@ -448,12 +449,13 @@ const StockOutPage = () => {
                     InputProps={{ inputProps: { min: 1, step: 1, max: selectedSparePart?.quantity ?? undefined } }}
                   />
                   <TextField
-                    label="Released By"
-                    value={spareForm.releasedBy}
-                    onChange={(e) => setSpareForm({ ...spareForm, releasedBy: e.target.value })}
+                    label="Processed By"
+                    value={spareForm.processedBy}
+                    onChange={(e) => setSpareForm({ ...spareForm, processedBy: e.target.value })}
                     fullWidth
                     required
                     disabled={submitting}
+                    helperText="Name of the person processing this withdrawal"
                   />
                   <TextField
                     label="Reference"
@@ -480,7 +482,7 @@ const StockOutPage = () => {
                     disabled={submitting || (selectedSparePart && spareForm.quantity && !spareQtyValid)}
                     startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : null}
                   >
-                    {submitting ? 'Recording...' : 'Record Stock Out'}
+                    {submitting ? 'Recording...' : 'Stock Out'}
                   </Button>
                 </Stack>
               )}
@@ -504,12 +506,13 @@ const StockOutPage = () => {
                     InputLabelProps={{ shrink: true }}
                   />
                   <TextField
-                    label="Employee Name"
+                    label="Requested By"
                     value={consumableForm.employeeName}
                     onChange={(e) => setConsumableForm({ ...consumableForm, employeeName: e.target.value })}
                     fullWidth
                     required
                     disabled={submitting}
+                    helperText="Name of the person who requested this item"
                   />
                   <TextField
                     label="Department"
@@ -566,12 +569,13 @@ const StockOutPage = () => {
                     InputProps={{ inputProps: { min: 1, step: 1, max: selectedConsumable?.quantity ?? undefined } }}
                   />
                   <TextField
-                    label="Released By"
-                    value={consumableForm.releasedBy}
-                    onChange={(e) => setConsumableForm({ ...consumableForm, releasedBy: e.target.value })}
+                    label="Processed By"
+                    value={consumableForm.processedBy}
+                    onChange={(e) => setConsumableForm({ ...consumableForm, processedBy: e.target.value })}
                     fullWidth
                     required
                     disabled={submitting}
+                    helperText="Name of the person processing this release"
                   />
                   <TextField
                     label="Reference"
@@ -598,7 +602,7 @@ const StockOutPage = () => {
                     disabled={submitting || (selectedConsumable && consumableForm.quantity && !consumableQtyValid)}
                     startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : null}
                   >
-                    {submitting ? 'Recording...' : 'Record Release'}
+                    {submitting ? 'Recording...' : 'Stock Out'}
                   </Button>
                 </Stack>
               )}

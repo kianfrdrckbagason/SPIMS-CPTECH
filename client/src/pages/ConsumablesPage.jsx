@@ -97,6 +97,8 @@ const ConsumablesPage = () => {
   const [stockDate, setStockDate] = useState(new Date().toISOString().slice(0, 10));
   const [stockDepartment, setStockDepartment] = useState('');
   const [stockReceivedBy, setStockReceivedBy] = useState('');
+  const [stockRequestedBy, setStockRequestedBy] = useState('');
+  const [stockProcessedBy, setStockProcessedBy] = useState('');
   const [stockQty, setStockQty] = useState(1);
   const [stockRemarks, setStockRemarks] = useState('');
   const [stockReference, setStockReference] = useState('');
@@ -261,7 +263,9 @@ const ConsumablesPage = () => {
     setStockAction(action);
     setStockDate(new Date().toISOString().slice(0, 10));
     setStockDepartment('');
-    setStockReceivedBy(user?.fullName || '');
+    setStockReceivedBy('');
+    setStockRequestedBy('');
+    setStockProcessedBy('');
     setStockQty(1);
     setStockRemarks('');
     setStockReference('');
@@ -303,13 +307,23 @@ const ConsumablesPage = () => {
       toast.error('Date is required');
       return;
     }
-    if (!stockReceivedBy.trim()) {
-      toast.error(stockAction === 'in' ? 'Received By is required' : 'Released By is required');
-      return;
+    if (stockAction === 'in') {
+      if (!stockReceivedBy.trim()) {
+        toast.error('Processed By is required');
+        return;
+      }
     }
     if (stockAction === 'out') {
       if (!stockDepartment.trim()) {
         toast.error('Department is required');
+        return;
+      }
+      if (!stockRequestedBy.trim()) {
+        toast.error('Requested By is required');
+        return;
+      }
+      if (!stockProcessedBy.trim()) {
+        toast.error('Processed By is required');
         return;
       }
       if (qty > (selectedItem.quantity || 0)) {
@@ -332,9 +346,9 @@ const ConsumablesPage = () => {
         payload.receivedBy = stockReceivedBy;
         res = await consumableStockIn(payload);
       } else {
-        payload.releasedBy = stockReceivedBy;
+        payload.releasedBy = stockProcessedBy;
         payload.department = stockDepartment;
-        payload.employeeName = stockReceivedBy;
+        payload.employeeName = stockRequestedBy;
         res = await consumableRelease(payload);
       }
 
@@ -713,13 +727,37 @@ const ConsumablesPage = () => {
               />
             )}
 
-            <TextField
-              fullWidth
-              label={stockAction === 'in' ? 'Received By' : 'Released By'}
-              value={stockReceivedBy}
-              onChange={(e) => setStockReceivedBy(e.target.value)}
-              required
-            />
+            {stockAction === 'in' && (
+              <TextField
+                fullWidth
+                label="Processed By"
+                value={stockReceivedBy}
+                onChange={(e) => setStockReceivedBy(e.target.value)}
+                required
+                helperText="Person who processed / received this stock in"
+              />
+            )}
+
+            {stockAction === 'out' && (
+              <>
+                <TextField
+                  fullWidth
+                  label="Requested By"
+                  value={stockRequestedBy}
+                  onChange={(e) => setStockRequestedBy(e.target.value)}
+                  required
+                  helperText="Person who requested this item"
+                />
+                <TextField
+                  fullWidth
+                  label="Processed By"
+                  value={stockProcessedBy}
+                  onChange={(e) => setStockProcessedBy(e.target.value)}
+                  required
+                  helperText="Person who processed / issued this stock out"
+                />
+              </>
+            )}
 
             <TextField
               fullWidth

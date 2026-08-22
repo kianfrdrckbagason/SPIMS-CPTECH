@@ -203,17 +203,18 @@ const DashboardPage = () => {
           <Box key={item.id || item._id || idx}>
             <ListItem sx={{ px: 0, py: 1 }}>
               <Avatar sx={{ bgcolor: 'primary.main', width: 44, height: 44, mr: 2, flexShrink: 0 }}>
-                {String((item.user || item.type || 'U').charAt(0)).toUpperCase()}
+                {String((item.requestedBy || item.processedBy || item.type || 'U').charAt(0)).toUpperCase()}
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="subtitle2" fontWeight={600} noWrap>
                   {item.typeLabel || item.item || item.name || 'Activity'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" noWrap>
+                <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {(() => {
                     const parts = [];
                     if (item.kind === 'transaction') {
-                      if (item.user) parts.push(`by ${item.user}`);
+                      if (item.requestedBy) parts.push(`Requested by: ${item.requestedBy}`);
+                      if (item.processedBy) parts.push(`Processed by: ${item.processedBy}`);
                       if (typeof item.quantity !== 'undefined' && item.quantity !== null)
                         parts.push(`Qty: ${item.quantity}`);
                       if (item.reference) parts.push(`Ref: ${item.reference}`);
@@ -265,19 +266,17 @@ const DashboardPage = () => {
         {renderStatCards()}
       </Grid>
 
-      {/* Recent Activity */}
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Recent Activity
-              </Typography>
-              {renderActivity()}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {/* Recent Activity — full width */}
+      <Box sx={{ width: '100%' }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
+              Recent Activity
+            </Typography>
+            {renderActivity()}
+          </CardContent>
+        </Card>
+      </Box>
     </Box>
   );
 };

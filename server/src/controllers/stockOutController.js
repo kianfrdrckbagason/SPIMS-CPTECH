@@ -147,8 +147,8 @@ export const recordStockOut = async (req, res) => {
       await Notification.create({
         type: "stockOut",
         severity: newStatus === "red" ? "critical" : "warning",
-        title: `Stock Released: ${part.name}`,
-        message: `${quantity} unit(s) of ${part.name} (SKU: ${part.sku}) released. Remaining stock: ${part.quantity}.`,
+        title: `Stock Out: ${part.name}`,
+        message: `${quantity} unit(s) of ${part.name} (SKU: ${part.sku}) issued. Remaining stock: ${part.quantity}.`,
         reference: {
           modelType: "Transaction",
           modelId: transaction._id,
@@ -255,8 +255,8 @@ export const consumableRelease = async (req, res) => {
       await Notification.create({
         type: "stockOut",
         severity: newStatus === "red" ? "critical" : "warning",
-        title: `Consumable Released: ${item.name}`,
-        message: `${quantity} unit(s) of ${item.name} (SKU: ${item.sku}) released. Remaining stock: ${item.quantity}.`,
+        title: `Stock Out: ${item.name}`,
+        message: `${quantity} unit(s) of ${item.name} (SKU: ${item.sku}) issued. Remaining stock: ${item.quantity}.`,
         reference: {
           modelType: "Transaction",
           modelId: transaction._id,

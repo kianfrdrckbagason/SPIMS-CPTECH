@@ -122,6 +122,8 @@ const SparePartsPage = () => {
   const [stockDepartment, setStockDepartment] = useState('');
   const [stockMachine, setStockMachine] = useState('');
   const [stockRequestedBy, setStockRequestedBy] = useState('');
+  const [stockProcessedBy, setStockProcessedBy] = useState('');
+  const [stockReceivedBy, setStockReceivedBy] = useState('');
   const [stockQty, setStockQty] = useState(1);
   const [stockRemarks, setStockRemarks] = useState('');
   const [stockSubmitting, setStockSubmitting] = useState(false);
@@ -337,6 +339,10 @@ const SparePartsPage = () => {
       setStockDepartment('');
       setStockMachine(row.machine || '');
       setStockRequestedBy('');
+      setStockProcessedBy('');
+    }
+    if (action === 'in') {
+      setStockReceivedBy('');
     }
     setStockQty(1);
     setStockRemarks('');
@@ -348,11 +354,16 @@ const SparePartsPage = () => {
   const submitStock = async () => {
     if (!selectedPart) return;
     if (!stockQty || Number(stockQty) <= 0) return toast.error('Enter a valid quantity');
+    if (stockAction === 'in') {
+      if (!stockDate) return toast.error('Date is required');
+      if (!stockReceivedBy.trim()) return toast.error('Processed By is required');
+    }
     if (stockAction === 'out') {
       if (!stockDate) return toast.error('Date is required');
       if (!stockDepartment.trim()) return toast.error('Department is required');
       if (!stockMachine.trim()) return toast.error('Machine is required');
       if (!stockRequestedBy.trim()) return toast.error('Requested By is required');
+      if (!stockProcessedBy.trim()) return toast.error('Processed By is required');
     }
     setStockSubmitting(true);
     try {
@@ -363,11 +374,12 @@ const SparePartsPage = () => {
           employeeName: stockRequestedBy,
           department: stockDepartment,
           machine: stockMachine,
-          releasedBy: stockRequestedBy,
+          releasedBy: stockProcessedBy,
           remarks: stockRemarks || undefined,
         });
       } else {
         payload.date = stockDate;
+        payload.receivedBy = stockReceivedBy;
         payload.remarks = stockRemarks || undefined;
       }
       const { sparePartStockIn, sparePartStockOut } = await import('../services/stockApi');
@@ -742,6 +754,13 @@ const SparePartsPage = () => {
               onChange={(e) => setStockDate(e.target.value)}
               InputLabelProps={{ shrink: true }} sx={{ mt: 1 }} required />
 
+            {/* Stock In only — Processed By */}
+            {stockAction === 'in' && (
+              <TextField fullWidth label="Processed By" value={stockReceivedBy}
+                onChange={(e) => setStockReceivedBy(e.target.value)} sx={{ mt: 2 }} required
+                helperText="Person who processed / received this stock in" />
+            )}
+
             {/* Stock Out only — restore Department, Machine, Requested By */}
             {stockAction === 'out' && (
               <>
@@ -751,7 +770,11 @@ const SparePartsPage = () => {
                   onChange={(e) => setStockMachine(e.target.value)} sx={{ mt: 2 }} required
                   helperText={selectedPart?.machine ? `Prefilled from part: ${selectedPart.machine}` : undefined} />
                 <TextField fullWidth label="Requested By" value={stockRequestedBy}
-                  onChange={(e) => setStockRequestedBy(e.target.value)} sx={{ mt: 2 }} required />
+                  onChange={(e) => setStockRequestedBy(e.target.value)} sx={{ mt: 2 }} required
+                  helperText="Person who requested this part" />
+                <TextField fullWidth label="Processed By" value={stockProcessedBy}
+                  onChange={(e) => setStockProcessedBy(e.target.value)} sx={{ mt: 2 }} required
+                  helperText="Person who processed / issued this stock out" />
               </>
             )}
 

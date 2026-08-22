@@ -48,7 +48,7 @@ const StockInPage = () => {
     date: today,
     sparePartId: '',
     quantity: '',
-    receivedBy: user?.fullName || '',
+    receivedBy: '',
     unitPrice: '',
     remarks: '',
   });
@@ -57,7 +57,7 @@ const StockInPage = () => {
     date: today,
     consumableId: '',
     quantity: '',
-    receivedBy: user?.fullName || '',
+    receivedBy: '',
     reference: '',
     unitPrice: '',
     remarks: '',
@@ -151,7 +151,7 @@ const StockInPage = () => {
       return;
     }
     if (!spareForm.receivedBy.trim()) {
-      toast.error('Received By is required');
+      toast.error('Processed By is required');
       return;
     }
     setSubmitting(true);
@@ -172,7 +172,7 @@ const StockInPage = () => {
           date: today,
           sparePartId: '',
           quantity: '',
-          receivedBy: user?.fullName || '',
+          receivedBy: '',
           reference: '',
           unitPrice: '',
           remarks: '',
@@ -200,7 +200,7 @@ const StockInPage = () => {
       return;
     }
     if (!consumableForm.receivedBy.trim()) {
-      toast.error('Received By is required');
+      toast.error('Processed By is required');
       return;
     }
     setSubmitting(true);
@@ -221,7 +221,7 @@ const StockInPage = () => {
           date: today,
           consumableId: '',
           quantity: '',
-          receivedBy: user?.fullName || '',
+          receivedBy: '',
           reference: '',
           unitPrice: '',
           remarks: '',
@@ -257,7 +257,7 @@ const StockInPage = () => {
               <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Item</TableCell>
               <TableCell sx={{ fontWeight: 600, align: 'right' }}>Qty</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Received By</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Processed By</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Reference</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Remarks</TableCell>
             </TableRow>
@@ -362,12 +362,13 @@ const StockInPage = () => {
                     helperText={!!spareForm.quantity && Number(spareForm.quantity) <= 0 ? 'Quantity must be at least 1' : ''}
                   />
                   <TextField
-                    label="Received By"
+                    label="Processed By"
                     value={spareForm.receivedBy}
                     onChange={(e) => setSpareForm({ ...spareForm, receivedBy: e.target.value })}
                     fullWidth
                     required
                     disabled={submitting}
+                    helperText="Person who processed / received this stock in"
                   />
                   <TextField
                     label="Unit Price"
@@ -460,12 +461,13 @@ const StockInPage = () => {
                     helperText={!!consumableForm.quantity && Number(consumableForm.quantity) <= 0 ? 'Quantity must be at least 1' : ''}
                   />
                   <TextField
-                    label="Received By"
+                    label="Processed By"
                     value={consumableForm.receivedBy}
                     onChange={(e) => setConsumableForm({ ...consumableForm, receivedBy: e.target.value })}
                     fullWidth
                     required
                     disabled={submitting}
+                    helperText="Person who processed / received this stock in"
                   />
                   <TextField
                     label="Unit Price"
